@@ -95,6 +95,7 @@
 <header class="topbar">
   <h1>📝 기획회의 회의록</h1>
   <div class="sp">
+    <button class="btn ghost" id="syncPill" title="공유 상태 — 눌러서 다시 받아오기">⚪ 이 컴퓨터에만 저장</button>
     <button class="btn ghost" id="btnList">📋 지난 회의록</button>
     <button class="btn ghost" id="btnLoad">↻ 월중계획 불러오기</button>
     <button class="btn ghost" id="btnPdf">📄 PDF로 저장</button>
@@ -148,6 +149,13 @@
    기획회의 회의록 — 단일 HTML (외부 라이브러리 없음)
    저장: 브라우저 localStorage / 인쇄 → PDF로 저장
    ========================================================= */
+/* ★★★★★ 대시보드와 똑같은 값을 넣으세요 (공유 서버 주소·암호) ★★★★★ */
+const SHARE = {
+  url: 'https://script.google.com/macros/s/AKfycbwOazivR_U6_3Gb1mdUEuYRhyPIk5QRS3PnXRIZuQgNS9TcZajLKeNPwRi4AIePJBUrcg/exec',
+  pw : '7011'
+};
+/* ★★★★★ 여기까지 ★★★★★ */
+
 const LS = 'school-meeting-minutes-v1';
 const DASH_LS = 'school-dashboard-v1';        // 대시보드가 쓰는 저장소 (같은 폴더 = 같은 저장소)
 const DEF_DEPTS = ['학사일정','교무부','연구부','교육과정부','학생부','교육정보부','진로상담부',
@@ -159,18 +167,101 @@ const pad = n => String(n).padStart(2,'0');
 const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-let M = { depts: DEF_DEPTS.slice(), weeks: {} };
+let M = { depts: DEF_DEPTS.slice(), weeks: {}, weekAt: {}, who: '' };
 let weekKey = '';          // 월요일 날짜 = 그 주 회의록의 열쇠
 let incoming = null;       // 대시보드에서 넘어온 월중계획 자료
+const SRV = {events:[], at:0, busy:false, err:'', dirty:new Set(), timer:null};
+
+/* ---------- 공유 (대시보드와 같은 서버) ---------- */
+function shareCfg(){
+  try{
+    const d = JSON.parse(localStorage.getItem(DASH_LS)||'{}');
+    if(d.share && d.share.url) return {url:String(d.share.url).trim(), pw:String(d.share.pw||''), who:d.user||''};
+    if(d.user && SHARE.url) return {url:SHARE.url.trim(), pw:SHARE.pw, who:d.user};
+  }catch(e){}
+  return {url:String(SHARE.url||'').trim(), pw:String(SHARE.pw||''), who:''};
+}
+function shareOn(){ return !!shareCfg().url; }
+function whoAmI(){ return M.who || shareCfg().who || '이름 미입력'; }
+
+async function apiPost(payload){
+  const {url} = shareCfg();
+  const res = await fetch(url, {method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+  if(!res.ok) throw new Error('서버 응답 ' + res.status);
+  const j = await res.json();
+  if(!j.ok) throw new Error(j.error || '저장하지 못했습니다');
+  return j;
+}
+function queuePush(){
+  if(!shareOn()) return;
+  SRV.dirty.add(weekKey);
+  clearTimeout(SRV.timer);
+  SRV.timer = setTimeout(pushNow, 1200);
+}
+async function pushNow(){
+  if(!shareOn() || SRV.busy || !SRV.dirty.size) return;
+  SRV.busy = true; renderSyncPill();
+  const weeks = [...SRV.dirty];
+  try{
+    const {pw} = shareCfg();
+    for(const wk of weeks){
+      if(!M.weeks[wk]) continue;
+      await apiPost({action:'pushMinutes', pw, who:whoAmI(), week:wk, doc:M.weeks[wk]});
+      M.weekAt[wk] = Date.now();
+      SRV.dirty.delete(wk);
+    }
+    SRV.at = Date.now(); SRV.err = '';
+    save(true);
+  }catch(e){ SRV.err = e.message || '연결 실패'; }
+  finally{ SRV.busy = false; renderSyncPill(); }
+}
+async function pullNow(silent){
+  if(!shareOn()){ renderSyncPill(); return; }
+  SRV.busy = true; renderSyncPill();
+  try{
+    const {url} = shareCfg();
+    const res = await fetch(url + (url.includes('?')?'&':'?') + 'action=pull&t=' + Date.now());
+    if(!res.ok) throw new Error('서버 응답 ' + res.status);
+    const j = await res.json();
+    if(!j.ok) throw new Error(j.error || '불러오지 못했습니다');
+
+    SRV.events = (j.events||[]).filter(e=>!e.deleted);
+    (j.minutes||[]).forEach(m=>{
+      if(SRV.dirty.has(m.week)) return;                    // 내가 지금 고치는 주는 건드리지 않음
+      if((m.updatedAt||0) > (M.weekAt[m.week]||0)){
+        M.weeks[m.week] = m.doc;
+        M.weekAt[m.week] = m.updatedAt;
+        M.weeks[m.week].who = m.who || '';
+      }
+    });
+    SRV.at = Date.now(); SRV.err = '';
+    save(true); renderAll();
+    if(!silent) toast(`공유 자료를 받아왔습니다 (회의록 ${(j.minutes||[]).length}주치)`);
+  }catch(e){
+    SRV.err = e.message || '연결 실패';
+    if(!silent) toast('공유 서버에 연결하지 못했습니다 — ' + SRV.err);
+  }finally{ SRV.busy = false; renderSyncPill(); }
+}
+function renderSyncPill(){
+  const el = $('syncPill'); if(!el) return;
+  if(!shareOn()){ el.className='btn ghost'; el.textContent='⚪ 이 컴퓨터에만 저장'; return; }
+  if(SRV.busy){ el.className='btn ghost'; el.textContent='🔄 주고받는 중…'; return; }
+  if(SRV.err){ el.className='btn ghost'; el.textContent='🔴 연결 안 됨'; el.title=SRV.err; return; }
+  const t = SRV.at ? new Date(SRV.at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : '';
+  el.className = 'btn ghost';
+  el.textContent = `🟢 함께 보는 중${t?' · '+t:''}`;
+}
 
 function toast(msg){
   const t=$('toast'); t.textContent=msg; t.classList.add('on');
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2200);
 }
-function save(){
+function save(quiet){
   try{ localStorage.setItem(LS, JSON.stringify(M)); }catch(e){ toast('저장 공간이 부족합니다'); }
   const s=$('savedMark');
   s.textContent = '✔ 저장됨 ' + new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if(!quiet){ M.weekAt[weekKey] = Date.now(); queuePush(); }   // 고친 내용을 전 교사에게 공유
 }
 function load(){
   try{
@@ -179,6 +270,7 @@ function load(){
   }catch(e){}
   if(!Array.isArray(M.depts) || !M.depts.length) M.depts = DEF_DEPTS.slice();
   M.weeks = M.weeks || {};
+  M.weekAt = M.weekAt || {};
 }
 function mondayOf(d){
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -321,13 +413,19 @@ $('btnTrim').onclick = ()=>{
    ③ 지난번에 받아 둔 사본
    ========================================================= */
 function readPlan(){
+  // ⓞ 공유 서버에서 받아 둔 일정 (전 교사가 함께 보는 자료)
+  if(SRV.events && SRV.events.length){
+    const list = SRV.events.filter(e=>e && e.date && e.title)
+                           .map(e=>({date:e.date, dept:e.dept, title:e.title}));
+    if(list.length) return {events:list, src:'공유 서버'};
+  }
   // ① 대시보드가 저장해 둔 자료를 그대로 읽는다
   try{
     const raw = localStorage.getItem(DASH_LS);
     if(raw){
       const D = JSON.parse(raw);
-      const evs = (D.events || []).slice();
-      Object.keys(D.sheetData || {}).forEach(k=>{
+      const evs = (D.events || []).filter(e=>!e.deleted);
+      Object.keys(D.sheetData || {}).forEach(k=>{          // 예전 방식으로 저장된 자료도 함께
         const d = D.sheetData[k];
         if(d && d.events) evs.push(...d.events);
       });
@@ -485,7 +583,19 @@ $('btnPdf').onclick = ()=>{
   if(incoming && incoming.meetDate && isNew) cur().meetDate = incoming.meetDate;
   renderAll();
   autoFillIfEmpty();          // 빈 주간이면 월중계획을 자동으로 채움
-  save();
+  save(true);
+
+  // 공유가 켜져 있으면 다른 선생님이 쓴 회의록도 함께 보인다
+  renderSyncPill();
+  if(shareOn()){
+    pullNow(true).then(()=>autoFillIfEmpty());
+    setInterval(()=>{ if(!document.hidden) pullNow(true); }, 60*1000);
+    window.addEventListener('focus', ()=>pullNow(true));
+  }
+  $('syncPill').onclick = ()=>{
+    if(!shareOn()){ toast('대시보드에서 [함께 쓰기] 설정을 먼저 해 주세요'); return; }
+    pullNow(false);
+  };
 })();
 </script>
 </body>

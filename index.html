@@ -43,6 +43,12 @@
   .topbar .sub{margin:2px 0 0;font-size:12px;opacity:.75}
   .topActions{display:flex;align-items:center;gap:8px}
   .userLabel{font-size:12.5px;opacity:.9;margin-right:4px}
+  .syncState{border:0;border-radius:999px;padding:6px 13px;font-size:12.5px;font-weight:700;
+    background:rgba(255,255,255,.22);color:#fff;white-space:nowrap}
+  .syncState:hover{background:rgba(255,255,255,.34)}
+  .syncState.ok{background:rgba(34,197,94,.9)}
+  .syncState.err{background:rgba(239,68,68,.92)}
+  .syncState.busy{background:rgba(255,255,255,.32)}
   .btn{
     border:0;border-radius:9px;padding:7px 13px;font-size:13px;font-weight:600;
     background:var(--brand);color:#fff;
@@ -211,6 +217,7 @@
     <p class="sub" id="ttlSub">made by 담당교사</p>
   </div>
   <div class="topActions">
+    <button class="syncState off" id="syncPill">⚪ 이 컴퓨터에만 저장</button>
     <span class="userLabel" id="ttlUser"></span>
     <button class="btn ghost" id="btnSettings">편집</button>
     <button class="btn ghost" id="btnPrint">🖨 인쇄</button>
@@ -294,8 +301,17 @@
 <script>
 /* =========================================================
    학교 업무 대시보드 — 단일 HTML (외부 라이브러리 없음)
-   저장: 브라우저 localStorage (이 PC · 이 브라우저에만 저장)
    ========================================================= */
+
+/* ★★★★★ 여기 두 줄만 우리 학교 값으로 바꾸면 전 교사가 함께 씁니다 ★★★★★
+   · url : 구글 시트에서 만든 Apps Script 웹 앱 주소 (…/exec 로 끝남)
+   · pw  : 공유서버_AppsScript.gs 안에 적은 것과 똑같은 암호
+   비워 두면 예전처럼 이 컴퓨터에만 저장됩니다.                        */
+const SHARE = {
+  url: 'https://script.google.com/macros/s/AKfycbwOazivR_U6_3Gb1mdUEuYRhyPIk5QRS3PnXRIZuQgNS9TcZajLKeNPwRi4AIePJBUrcg/exec',
+  pw : '7011'
+};
+/* ★★★★★ 여기까지 ★★★★★ */
 
 const LS = 'school-dashboard-v1';
 const PALETTE = ['#7c6cf0','#22a06b','#e9558f','#f59e0b','#3b82f6','#14b8a6','#ef4444','#8b5cf6','#0ea5e9','#f97316'];
@@ -311,10 +327,12 @@ let S = {
   depts: DEF_DEPTS.map((n,i)=>({name:n, color:PALETTE[i%PALETTE.length]})),
   sheets: [],            // 자료 파일 {id,name,fileName,defType,defDept}
   links: [],             // {id,name,url}
-  events: [],            // 직접 입력한 일정 {id,date,type,dept,title}
-  sheetData: {},         // 자료 id -> {events:[], at:'', status:'', msg:''}
+  events: [],            // 모든 일정 {id,date,type,dept,title,src,who,updatedAt,deleted}
+  sheetData: {},         // 자료 id -> {at:'', status:'', msg:'', count:0}
   baseYear: null,        // 보고 있는 학년도 (2026 = 2026.3 ~ 2027.2), 비어 있으면 오늘 기준
-  bg: null               // 배경 그림 {img:'data:image/jpeg;base64,...', veil:0.35}
+  bg: null,              // 배경 그림 {img:'data:image/jpeg;base64,...', veil:0.35} — 이 컴퓨터에만 저장
+  share: null,           // 공유 설정 {url, pw} — 프로그램에 적힌 값보다 우선
+  setupAt: 0             // 부서·구분·링크·자료목록을 마지막으로 고친 시각
 };
 
 let filterTypes = new Set();   // 비어있으면 = 전체
@@ -346,6 +364,37 @@ function load(){
   if(!Array.isArray(S.types)||!S.types.length) S.types = DEF_TYPES.slice();
   if(!Array.isArray(S.depts)||!S.depts.length) S.depts = DEF_DEPTS.map((n,i)=>({name:n,color:PALETTE[i%PALETTE.length]}));
   S.sheets = S.sheets||[]; S.links = S.links||[]; S.events = S.events||[]; S.sheetData = S.sheetData||{};
+
+  // 예전 방식(파일 일정을 따로 보관) → 일정 한 곳으로 모으기
+  let moved = false;
+  Object.keys(S.sheetData).forEach(id=>{
+    const d = S.sheetData[id];
+    if(d && Array.isArray(d.events)){
+      const sheet = S.sheets.find(s=>s.id===id);
+      d.events.forEach(ev=>{
+        S.events.push({id:fileEvId(id, ev), date:ev.date, type:ev.type, dept:ev.dept,
+                       title:ev.title, src:id, srcName:(sheet?sheet.name:ev.sheetName)||'', who:S.user||'',
+                       updatedAt:Date.now(), deleted:false});
+      });
+      d.count = d.events.length;
+      delete d.events;
+      moved = true;
+    }
+  });
+  // 예전 일정에 없던 항목 채우기
+  S.events.forEach(e=>{
+    if(!e.updatedAt){ e.updatedAt = Date.now(); moved = true; }
+    if(e.src === undefined){ e.src = ''; moved = true; }
+    if(e.deleted === undefined) e.deleted = false;
+  });
+  if(moved) save();
+}
+// 파일에서 온 일정은 같은 줄이면 늘 같은 이름표를 갖도록 (다시 올려도 중복되지 않음)
+function fileEvId(sheetId, ev){
+  const key = [ev.date, ev.dept, ev.type, ev.title].join('|');
+  let h = 5381;
+  for(let i=0;i<key.length;i++) h = ((h*33) ^ key.charCodeAt(i)) >>> 0;
+  return 'f' + sheetId + '-' + h.toString(36);
 }
 function deptColor(name){
   const d = S.depts.find(x=>x.name===name);
@@ -357,6 +406,144 @@ function hexA(hex, a){
   const h = hex.replace('#','');
   const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
   return `rgba(${r},${g},${b},${a})`;
+}
+
+/* =========================================================
+   공유 (구글 시트 + Apps Script 웹앱)
+   · 켜져 있으면 모든 선생님이 같은 자료를 보고 함께 고칠 수 있습니다.
+   · 꺼져 있으면 예전처럼 이 컴퓨터에만 저장됩니다.
+   ========================================================= */
+const SYNC = {on:false, at:0, busy:false, err:'', dirty:new Set(), cfgDirty:false, timer:null};
+
+function shareCfg(){
+  const c = (S.share && S.share.url) ? S.share : SHARE;
+  return {url:String(c.url||'').trim(), pw:String(c.pw||'')};
+}
+function shareOn(){ return !!shareCfg().url; }
+function whoAmI(){ return S.user || '이름 미입력'; }
+
+function touchEvent(ev){                       // 일정을 고칠 때마다 표시해 둠
+  ev.updatedAt = Date.now();
+  ev.who = whoAmI();
+  SYNC.dirty.add(ev.id);
+  queuePush();
+}
+function queuePush(){
+  if(!shareOn()) return;
+  clearTimeout(SYNC.timer);
+  SYNC.timer = setTimeout(pushNow, 900);       // 연달아 고쳐도 한 번에 보냄
+}
+async function api(payload){
+  const {url} = shareCfg();
+  const res = await fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},   // 미리 확인 요청 없이 바로 보내기
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok) throw new Error('서버 응답 ' + res.status);
+  const j = await res.json();
+  if(!j.ok) throw new Error(j.error || '저장하지 못했습니다');
+  return j;
+}
+async function pushNow(){
+  if(!shareOn() || SYNC.busy) return;
+  const ids = [...SYNC.dirty];
+  const items = S.events.filter(e=>ids.indexOf(e.id)>=0);
+  if(!items.length && !SYNC.cfgDirty) return;
+  SYNC.busy = true; renderSyncPill();
+  try{
+    const {pw} = shareCfg();
+    if(items.length){
+      await api({action:'pushEvents', pw, who:whoAmI(), items});
+      ids.forEach(id=>SYNC.dirty.delete(id));
+    }
+    if(SYNC.cfgDirty){
+      await api({action:'pushConfig', pw, who:whoAmI(), key:'setup', doc:setupDoc()});
+      SYNC.cfgDirty = false;
+    }
+    SYNC.at = Date.now(); SYNC.err = '';
+  }catch(e){
+    SYNC.err = e.message || '연결 실패';
+  }finally{
+    SYNC.busy = false; renderSyncPill();
+  }
+}
+function setupDoc(){
+  return {types:S.types, depts:S.depts, links:S.links, sheets:S.sheets,
+          school:S.school, sub:S.sub, at:S.setupAt||Date.now()};
+}
+function markSetupChanged(){
+  S.setupAt = Date.now();
+  SYNC.cfgDirty = true;
+  queuePush();
+}
+async function pullNow(silent){
+  if(!shareOn()){ renderSyncPill(); return; }
+  SYNC.busy = true; renderSyncPill();
+  try{
+    const {url} = shareCfg();
+    const res = await fetch(url + (url.includes('?')?'&':'?') + 'action=pull&t=' + Date.now());
+    if(!res.ok) throw new Error('서버 응답 ' + res.status);
+    const j = await res.json();
+    if(!j.ok) throw new Error(j.error || '불러오지 못했습니다');
+
+    // 1) 일정 합치기 — 더 나중에 고친 쪽이 이깁니다
+    const mine = {}; S.events.forEach(e=>mine[e.id]=e);
+    (j.events||[]).forEach(sv=>{
+      const lo = mine[sv.id];
+      if(!lo || (sv.updatedAt||0) > (lo.updatedAt||0)) mine[sv.id] = sv;
+    });
+    S.events = Object.keys(mine).map(k=>mine[k]);
+
+    // 2) 서버에 없거나 내 것이 더 최신인 일정은 올려 보내기
+    const svMap = {}; (j.events||[]).forEach(e=>svMap[e.id]=e);
+    S.events.forEach(e=>{
+      const sv = svMap[e.id];
+      if(!sv || (e.updatedAt||0) > (sv.updatedAt||0)) SYNC.dirty.add(e.id);
+    });
+
+    // 3) 부서·구분·링크·자료 목록
+    const cf = (j.config||{}).setup;
+    if(cf && cf.doc && (cf.updatedAt||0) > (S.setupAt||0)){
+      const d = cf.doc;
+      if(Array.isArray(d.types) && d.types.length) S.types = d.types;
+      if(Array.isArray(d.depts) && d.depts.length) S.depts = d.depts;
+      if(Array.isArray(d.links))  S.links  = d.links;
+      if(Array.isArray(d.sheets)) S.sheets = d.sheets;
+      if(d.school) S.school = d.school;
+      if(d.sub != null) S.sub = d.sub;
+      S.setupAt = cf.updatedAt;
+    }
+    SYNC.at = Date.now(); SYNC.err = '';
+    save(); renderAll();
+    if(SYNC.dirty.size) queuePush();
+    if(!silent) toast(`공유 자료를 불러왔습니다 (일정 ${(j.events||[]).filter(e=>!e.deleted).length}건)`);
+  }catch(e){
+    SYNC.err = e.message || '연결 실패';
+    if(!silent) toast('공유 서버에 연결하지 못했습니다 — ' + SYNC.err);
+  }finally{
+    SYNC.busy = false; renderSyncPill();
+  }
+}
+function renderSyncPill(){
+  const el = $('syncPill'); if(!el) return;
+  if(!shareOn()){
+    el.className = 'syncState off';
+    el.textContent = '⚪ 이 컴퓨터에만 저장';
+    el.title = '공유를 켜려면 눌러서 주소를 넣으세요';
+    return;
+  }
+  if(SYNC.busy){ el.className = 'syncState busy'; el.textContent = '🔄 주고받는 중…'; return; }
+  if(SYNC.err){
+    el.className = 'syncState err';
+    el.textContent = '🔴 연결 안 됨';
+    el.title = SYNC.err + ' — 눌러서 확인';
+    return;
+  }
+  const t = SYNC.at ? new Date(SYNC.at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : '';
+  el.className = 'syncState ok';
+  el.textContent = `🟢 함께 보는 중${t?' · '+t:''}`;
+  el.title = '전 교사가 같은 자료를 봅니다 — 눌러서 설정';
 }
 
 /* ---------- 배경 그림 ---------- */
@@ -603,7 +790,7 @@ async function readFileRows(file){
   // CSV / TSV / TXT — 한글이 깨지지 않도록 인코딩 자동 판별
   const buf = await file.arrayBuffer();
   let text = new TextDecoder('utf-8').decode(buf);
-  if(/�/.test(text)){                       // 깨진 글자가 있으면 옛 한글 인코딩으로 재시도
+  if(/ /.test(text)){                       // 깨진 글자가 있으면 옛 한글 인코딩으로 재시도
     try{ text = new TextDecoder('euc-kr').decode(buf); }catch(e){}
   }
   return parseTable(text.replace(/^﻿/,''));
@@ -616,19 +803,38 @@ function pickFile(item){
   inp.accept = '.csv,.xlsx,.tsv,.txt';
   inp.onchange = async ()=>{
     const f = inp.files[0]; if(!f) return;
-    const slot = S.sheetData[item.id] = S.sheetData[item.id] || {events:[],at:'',status:'',msg:''};
+    const slot = S.sheetData[item.id] = S.sheetData[item.id] || {at:'',status:'',msg:'',count:0};
     slot.status='load'; renderSheets();
     try{
       const rows = await readFileRows(f);
       const evs  = rowsToEvents(rows, item);
       item.fileName = f.name;
-      slot.events = evs;
+
+      // 이 자료에서 온 예전 일정은 지우고 새 파일 내용으로 바꾼다
+      const now = Date.now();
+      const fresh = {};
+      evs.forEach(ev=>{
+        const id = fileEvId(item.id, ev);
+        fresh[id] = {id, date:ev.date, type:ev.type, dept:ev.dept, title:ev.title,
+                     src:item.id, who:whoAmI(), updatedAt:now, deleted:false};
+      });
+      S.events.forEach(e=>{
+        if(e.src === item.id && !fresh[e.id] && !e.deleted){
+          e.deleted = true; e.updatedAt = now; e.who = whoAmI();
+          SYNC.dirty.add(e.id);
+        }
+      });
+      const mine = {}; S.events.forEach(e=>mine[e.id]=e);
+      Object.keys(fresh).forEach(id=>{ mine[id] = fresh[id]; SYNC.dirty.add(id); });
+      S.events = Object.keys(mine).map(k=>mine[k]);
+
+      slot.count = evs.length;
       slot.at = new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
       slot.status = evs.length ? 'ok' : 'err';
       slot.msg = evs.length
         ? `${evs.length}건 · ${f.name}`
         : `0건 — 첫 줄을 [날짜/구분/부서/내용] 으로 맞춰 주세요`;
-      save(); renderAll();                       // 저장 후 곧바로 대시보드에 반영
+      save(); queuePush(); renderAll();           // 저장 → 공유 → 화면 반영
       const info = $('mFileInfo');               // 편집 창이 열려 있으면 그 안도 갱신
       if(info) info.innerHTML = evs.length
         ? `현재: <b>${esc(f.name)}</b> — 일정 ${evs.length}건 (${esc(slot.at)})`
@@ -666,22 +872,18 @@ function rowsToEvents(rows, sheet){
     if(!title) return;
     const type = (iType>=0 && String(r[iType]||'').trim()) || sheet.defType || '기타';
     const dept = (iDept>=0 && String(r[iDept]||'').trim()) || sheet.defDept || sheet.name;
-    dates.forEach(d=>out.push({
-      id:'s'+sheet.id+'-'+d+'-'+out.length,
-      date:d, type, dept, title, sheetId:sheet.id, sheetName:sheet.name
-    }));
+    dates.forEach(d=>out.push({date:d, type, dept, title}));
   });
   return out;
 }
 
 /* ---------- 전체 일정 ---------- */
 function allEvents(){
-  const out = S.events.slice();
-  S.sheets.forEach(s=>{
-    const d = S.sheetData[s.id];
-    if(d && d.events) out.push(...d.events);
-  });
-  return out;
+  return S.events.filter(e=>!e.deleted);
+}
+function srcName(src){
+  const s = S.sheets.find(x=>x.id===src);
+  return s ? s.name : '파일';
 }
 function passFilter(e){
   if(filterTypes.size && !filterTypes.has(e.type)) return false;
@@ -735,7 +937,7 @@ $('deptChips').onclick = e=>{
 function renderSheets(){
   $('sheetList').innerHTML = S.sheets.map(s=>{
     const d = S.sheetData[s.id]||{};
-    const done = d.events && d.events.length;
+    const done = d.count > 0;
     return `<div class="item" data-id="${s.id}">
       <span class="sdot ${d.status||''}"></span>
       <button class="main ${done?'':'empty'}" data-act="upload"
@@ -844,8 +1046,9 @@ function renderToday(){
     const rows = groups[k].map(e=>`
       <div class="erow" data-id="${esc(e.id)}">
         <span class="badge" style="background:${hexA(c,.14)};color:${c}">${esc(e.type)}</span>
-        <div class="txt">${esc(e.title)}${e.sheetId?`<div class="src">📁 ${esc(e.sheetName)} 파일</div>`:''}</div>
-        ${e.sheetId ? `<span class="iconBtn" title="올린 파일에서 온 일정 — 파일을 고쳐 다시 올리세요">🔒</span>`
+        <div class="txt">${esc(e.title)}${e.src?`<div class="src">📁 ${esc(srcName(e.src))} 파일</div>`
+                                                :(e.who?`<div class="src">✍ ${esc(e.who)}</div>`:'')}</div>
+        ${e.src ? `<span class="iconBtn" title="올린 파일에서 온 일정 — 파일을 고쳐 다시 올리세요">🔒</span>`
                     : `<button class="iconBtn" data-edit="${esc(e.id)}" title="고치기">✎</button>
                        <button class="iconBtn" data-del="${esc(e.id)}" title="삭제">✕</button>`}
       </div>`).join('');
@@ -867,9 +1070,17 @@ $('todayBody').onclick = e=>{
   const b=e.target.closest('[data-del]'); if(!b) return;
   const id=b.dataset.del;
   if(!confirm('이 일정을 삭제할까요?')) return;
-  S.events = S.events.filter(x=>x.id!==id);
-  save(); renderCalendar(); renderToday();
+  removeEvent(id);
+  renderCalendar(); renderToday();
 };
+// 지운 일정도 표시만 해 둔다 — 그래야 다른 선생님 화면에서도 사라진다
+function removeEvent(id){
+  const ev = S.events.find(x=>x.id===id);
+  if(!ev) return;
+  ev.deleted = true;
+  touchEvent(ev);
+  save();
+}
 
 /* ---------- 일정 고치기 ---------- */
 function eventModal(ev){
@@ -901,6 +1112,7 @@ function eventModal(ev){
     ev.type  = $('evType').value || ev.type;
     ev.dept  = $('evDept').value || ev.dept;
     ev.title = $('evTitle').value.trim() || ev.title;
+    touchEvent(ev);
     save(); renderCalendar(); renderToday();
     const dd = new Date(ev.date+'T00:00:00');
     $('evInfo').innerHTML = `저장됨 → <b>${dd.getMonth()+1}월 ${dd.getDate()}일</b> · ${esc(ev.dept)} · ${esc(ev.type)}` +
@@ -913,8 +1125,8 @@ function eventModal(ev){
   touch();
   $('evDel').onclick = ()=>{
     if(!confirm('이 일정을 삭제할까요?')) return;
-    S.events = S.events.filter(x=>x.id!==ev.id);
-    save(); closeModal(); renderCalendar(); renderToday(); toast('삭제했습니다');
+    removeEvent(ev.id);
+    closeModal(); renderCalendar(); renderToday(); toast('삭제했습니다');
   };
   $('mCancel').onclick = ()=>{ touch(); closeModal(); };
 }
@@ -934,9 +1146,13 @@ function renderSelects(){
 $('btnAdd').onclick = ()=>{
   const title = $('addText').value.trim();
   if(!title){ toast('일정 내용을 입력하세요'); return; }
-  S.events.push({id:uid(), date:selected, type:$('addType').value, dept:$('addDept').value, title});
+  const ev = {id:uid(), date:selected, type:$('addType').value, dept:$('addDept').value,
+              title, src:'', who:whoAmI(), updatedAt:Date.now(), deleted:false};
+  S.events.push(ev);
+  touchEvent(ev);
   $('addText').value='';
-  save(); renderCalendar(); renderToday(); toast('일정을 추가했습니다');
+  save(); renderCalendar(); renderToday();
+  toast(shareOn() ? '일정을 추가했습니다 (전 교사 공유)' : '일정을 추가했습니다');
 };
 
 /* ---------- 모달 ---------- */
@@ -962,8 +1178,8 @@ function sheetModal(s){
     <div class="fld"><label>파일 올리기 (CSV · 엑셀 .xlsx)</label>
       <button class="btn" id="mPick" style="width:100%;padding:12px">📤 내 컴퓨터에서 파일 선택</button>
       <div class="hint" id="mFileInfo" style="margin-top:8px">
-        ${d.events && d.events.length
-          ? `현재: <b>${esc(s.fileName||'')}</b> — 일정 ${d.events.length}건 (${esc(d.at||'')})`
+        ${d.count
+          ? `현재: <b>${esc(s.fileName||'')}</b> — 일정 ${d.count}건 (${esc(d.at||'')})`
           : '아직 올린 파일이 없습니다.'}
       </div>
     </div>
@@ -990,7 +1206,7 @@ function sheetModal(s){
     s.name = $('mName').value.trim() || '자료';
     s.defDept = $('mDept').value;
     s.defType = $('mType').value;
-    save(); renderAll();
+    save(); markSetupChanged(); renderAll();
   };
   $('mName').oninput  = touch;
   $('mDept').onchange = touch;
@@ -999,7 +1215,7 @@ function sheetModal(s){
   $('mPick').onclick = ()=>{ touch(); pickFile(s); };
   $('mCancel').onclick = ()=>{
     touch();
-    const has = S.sheetData[s.id] && S.sheetData[s.id].events && S.sheetData[s.id].events.length;
+    const has = S.sheetData[s.id] && S.sheetData[s.id].count;
     if(isNew && !$('mName').value.trim() && !has){       // 이름도 파일도 없이 닫으면 없던 일로
       S.sheets = S.sheets.filter(x=>x.id!==s.id); save(); renderAll();
     }
@@ -1007,9 +1223,12 @@ function sheetModal(s){
   };
   $('mDel').onclick = ()=>{
     if(!confirm(`'${s.name||'이 자료'}' 와 여기서 들어온 일정을 모두 지울까요?`)) return;
+    S.events.forEach(e=>{                       // 이 자료에서 온 일정도 함께 지움
+      if(e.src === s.id && !e.deleted){ e.deleted = true; touchEvent(e); }
+    });
     S.sheets = S.sheets.filter(x=>x.id!==s.id);
     delete S.sheetData[s.id];
-    save(); closeModal(); renderAll(); toast('지웠습니다');
+    save(); markSetupChanged(); closeModal(); renderAll(); toast('지웠습니다');
   };
 }
 
@@ -1120,7 +1339,7 @@ function linkModal(l){
     let u = $('mUrl').value.trim();
     if(u && !/^https?:\/\//i.test(u)) u = 'https://'+u;
     l.url = u;
-    save(); renderLinks();
+    save(); markSetupChanged(); renderLinks();
     $('mLinkInfo').innerHTML = u ? `저장됨 → <b>${esc(u)}</b>` : '주소를 넣으면 카드가 초록색으로 바뀝니다.';
   };
   $('mName').oninput = touch;
@@ -1214,7 +1433,7 @@ function settingsModal(){
     // 지워진 부서·구분이 필터에 남아 있으면 정리
     [...filterDepts].forEach(n=>{ if(!S.depts.some(d=>d.name===n)) filterDepts.delete(n); });
     [...filterTypes].forEach(t=>{ if(!S.types.includes(t)) filterTypes.delete(t); });
-    save(); renderAll();
+    save(); markSetupChanged(); renderAll();
     const mark = $('savedMark');
     if(mark){ mark.textContent='✔ 저장됨 '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
   }
@@ -1281,6 +1500,80 @@ function settingsModal(){
 $('btnSettings').onclick = settingsModal;
 $('btnPrint').onclick = ()=>window.print();
 
+/* ---------- 공유 설정 창 ---------- */
+$('syncPill').onclick = ()=>{
+  const c = shareCfg();
+  const fixed = !!String(SHARE.url||'').trim();     // 프로그램에 이미 주소가 박혀 있는지
+  openModal(`
+    <h3>👥 함께 쓰기(공유) 설정</h3>
+    <p class="desc">공유를 켜면 <b>모든 선생님이 같은 월중계획</b>을 보고 함께 입력할 수 있습니다.
+      자료는 우리 학교 구글 시트에 저장됩니다.</p>
+
+    <div class="fld"><label>내 이름 (누가 입력했는지 표시됩니다)</label>
+      <input id="shWho" type="text" value="${esc(S.user)}" placeholder="예: 교무기획부 홍길동" autocomplete="off">
+    </div>
+    <div class="fld"><label>공유 주소 (Apps Script 웹 앱 …/exec)</label>
+      <input id="shUrl" type="text" value="${esc(c.url)}" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    </div>
+    <div class="fld"><label>쓰기 암호</label>
+      <input id="shPw" type="text" value="${esc(c.pw)}" placeholder="서버 코드에 적은 암호" autocomplete="off">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn line sm" id="shTest">🔎 연결 확인</button>
+      <button class="btn line sm" id="shPull">⬇ 지금 받아오기</button>
+      <button class="btn line sm" id="shPush">⬆ 내 자료 올리기</button>
+      <button class="btn danger sm" id="shOff">공유 끄기</button>
+    </div>
+    <div class="hint" id="shOut">
+      ${shareOn() ? '지금 <b>공유 중</b>입니다.' : '아직 공유가 꺼져 있습니다.'}
+      ${fixed ? '<br>이 프로그램에는 학교 주소가 이미 들어 있어, 선생님들은 그냥 열기만 하면 됩니다.' : ''}
+    </div>
+    <div class="hint">· 배경 그림은 각자 컴퓨터에만 저장됩니다(용량이 커서 공유하지 않습니다).<br>
+      · 인터넷이 끊겨도 입력은 되고, 연결되면 자동으로 올라갑니다.</div>
+    <div class="modalFoot"><button class="btn" id="mCancel">닫기</button></div>`);
+
+  const grab = ()=>{
+    S.user = $('shWho').value.trim();
+    const u = $('shUrl').value.trim(), p = $('shPw').value.trim();
+    S.share = u ? {url:u, pw:p} : null;
+    save(); renderAll();
+  };
+  $('shWho').oninput = grab;
+  $('shUrl').oninput = grab;
+  $('shPw').oninput  = grab;
+
+  $('shTest').onclick = async ()=>{
+    grab();
+    const box = $('shOut');
+    if(!shareOn()){ box.innerHTML = '먼저 공유 주소를 넣어 주세요.'; return; }
+    box.innerHTML = '확인 중…';
+    try{
+      const {url} = shareCfg();
+      const res = await fetch(url + (url.includes('?')?'&':'?') + 'action=ping&t=' + Date.now());
+      const j = await res.json();
+      if(!j.ok) throw new Error(j.error||'응답이 이상합니다');
+      box.innerHTML = '✅ 서버와 잘 연결됩니다. 이제 <b>⬇ 지금 받아오기</b>를 눌러 보세요.';
+    }catch(e){
+      box.innerHTML = '❌ 연결하지 못했습니다 — ' + esc(e.message) +
+        '<br>· 주소가 <b>/exec</b> 로 끝나는지<br>· 배포할 때 <b>액세스 권한을 [모든 사용자]</b> 로 했는지 확인하세요.';
+    }
+  };
+  $('shPull').onclick = async ()=>{ grab(); await pullNow(false); $('shOut').innerHTML = SYNC.err ? '❌ '+esc(SYNC.err) : '✅ 받아왔습니다.'; };
+  $('shPush').onclick = async ()=>{
+    grab();
+    S.events.forEach(e=>SYNC.dirty.add(e.id));
+    SYNC.cfgDirty = true;
+    await pushNow();
+    $('shOut').innerHTML = SYNC.err ? '❌ '+esc(SYNC.err) : '✅ 내 자료를 모두 올렸습니다.';
+  };
+  $('shOff').onclick = ()=>{
+    if(!confirm('공유를 끄면 이 컴퓨터에만 저장됩니다. 계속할까요?')) return;
+    S.share = {url:'', pw:''};
+    save(); renderSyncPill(); closeModal(); toast('공유를 껐습니다');
+  };
+  $('mCancel').onclick = ()=>{ grab(); closeModal(); };
+};
+
 /* ---------- 월중 일괄 입력 ---------- */
 $('btnBulk').onclick = ()=>{
   openModal(`
@@ -1314,9 +1607,13 @@ $('btnBulk').onclick = ()=>{
         else title=rest.join(', ');
       } else title = rest.join(', ');
       if(!title) return;
-      dates.forEach(d=>{ S.events.push({id:uid(), date:d, type, dept, title}); n++; });
+      dates.forEach(d=>{
+        const ev = {id:uid(), date:d, type, dept, title, src:'', who:whoAmI(),
+                    updatedAt:Date.now(), deleted:false};
+        S.events.push(ev); SYNC.dirty.add(ev.id); n++;
+      });
     });
-    save(); closeModal(); renderCalendar(); renderToday(); toast(`${n}건을 추가했습니다`);
+    save(); queuePush(); closeModal(); renderCalendar(); renderToday(); toast(`${n}건을 추가했습니다`);
   };
 };
 
@@ -1347,7 +1644,7 @@ function renderAll(){
   $('ttlSub').textContent = S.sub;
   $('ttlUser').textContent = S.user;
   document.title = S.school;
-  applyBg();
+  applyBg(); renderSyncPill();
   renderFilters(); renderSheets(); renderLinks(); renderSelects();
   renderCalendar(); renderToday();
 }
@@ -1385,6 +1682,14 @@ function renderAll(){
   if(moved) save();
 
   renderAll();
+
+  // 공유가 켜져 있으면 자료를 받아오고, 이후에도 주기적으로 주고받는다
+  if(shareOn()){
+    pullNow(true);
+    setInterval(()=>{ if(!document.hidden) pullNow(true); }, 60*1000);
+    window.addEventListener('focus', ()=>pullNow(true));
+    window.addEventListener('online', ()=>{ pullNow(true); queuePush(); });
+  }
 })();
 </script>
 </body>
