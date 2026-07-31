@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기획회의 회의록</title>
+<style>
+  :root{
+    --bg:#f4f5fa; --card:#fff; --line:#d9dbe7; --text:#22243a; --muted:#8a8fa8;
+    --brand:#6c5ce7; --head:#eef0f9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:"Pretendard","맑은 고딕","Malgun Gothic",-apple-system,"Segoe UI",sans-serif;
+    font-size:14px;line-height:1.5}
+  button{font-family:inherit;cursor:pointer}
+  input,select{font-family:inherit;font-size:14px}
+
+  .topbar{background:linear-gradient(100deg,#6c5ce7,#9b6ce7 60%,#a78bfa);color:#fff;
+    padding:16px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .topbar h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px}
+  .topbar .sp{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .btn{border:0;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:700;background:var(--brand);color:#fff;text-decoration:none;display:inline-block}
+  .btn.ghost{background:rgba(255,255,255,.22);color:#fff}
+  .btn.ghost:hover{background:rgba(255,255,255,.35)}
+  .btn.line{background:#fff;color:var(--text);border:1px solid var(--line)}
+  .btn.line:hover{background:#f6f6fc}
+  .btn.sm{padding:6px 11px;font-size:12.5px}
+  .btn.danger{background:#ef4444}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 20px 60px}
+  .bar{background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(60,60,110,.06);
+    padding:14px 16px;margin-bottom:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .bar label{font-size:12.5px;font-weight:700;color:#5a5f7a;margin-right:6px}
+  .bar input[type=date]{border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+  .saved{margin-left:auto;font-size:12px;color:#22a06b;font-weight:700}
+
+  .paper{background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(60,60,110,.06);padding:26px 28px}
+  .docTitle{text-align:center;font-size:21px;font-weight:800;margin:0 0 22px}
+  h2.sec{font-size:15px;font-weight:800;margin:26px 0 9px}
+  h2.sec:first-of-type{margin-top:0}
+
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{border:1px solid var(--line);padding:6px 7px;vertical-align:top;font-size:12.5px;word-break:break-word}
+  th{background:var(--head);font-weight:700;text-align:center;font-size:12.5px}
+  td.deptCell{background:#fafbff;font-weight:700;text-align:center;width:96px}
+  td.numCell{background:#fafbff;font-weight:700;text-align:center;width:38px}
+  .cell{min-height:22px;outline:none;white-space:pre-wrap}
+  .cell:focus{background:#f4f2ff;box-shadow:inset 0 0 0 2px var(--brand);border-radius:3px}
+  .cell:empty::before{content:attr(data-ph);color:#c3c7d8}
+  /* ✕(줄 지우기)는 평소에 감춰두고, [줄 지우기] 단추를 눌렀을 때만 보임 */
+  th.rm,td.rm{display:none}
+  body.trim th.rm,body.trim td.rm{display:table-cell}
+  td.rm{width:26px;text-align:center;border:0;background:transparent;padding:0 0 0 4px}
+  th.rm{width:26px;border:0;background:transparent}
+  .rmBtn{border:0;background:transparent;color:#f0a0a0;font-size:13px;padding:4px}
+  .rmBtn:hover{color:#ef4444}
+  .trimMsg{display:none;font-size:12px;color:#ef4444;font-weight:700}
+  body.trim .trimMsg{display:inline}
+  .addRow{margin-top:7px}
+  .addRow button{border:1px dashed var(--line);background:#fff;color:#8a8fa8;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700}
+  .addRow button:hover{color:var(--brand);border-color:var(--brand)}
+  .note{font-size:11.5px;color:var(--muted);margin:6px 0 0}
+
+  .back{position:fixed;inset:0;background:rgba(30,32,55,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .back.on{display:flex}
+  .modal{background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:86vh;overflow:auto;padding:22px 24px}
+  .modal h3{margin:0 0 14px;font-size:18px}
+  .wkRow{display:flex;align-items:center;gap:8px;border-bottom:1px solid #f1f2f9;padding:9px 2px}
+  .wkRow .t{flex:1;font-size:13.5px;font-weight:600}
+  .wkRow .s{font-size:11.5px;color:var(--muted)}
+  .hint{font-size:12px;color:var(--muted);background:#f8f8fd;border-radius:8px;padding:10px 12px;line-height:1.6}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2f3350;color:#fff;
+    padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
+  .toast.on{opacity:1}
+
+  @media print{
+    @page{ size:A4 portrait; margin:11mm; }
+    body{background:#fff}
+    .topbar,.bar,.noprint,.addRow,td.rm{display:none!important}
+    .wrap{padding:0;max-width:none}
+    .paper{box-shadow:none;border-radius:0;padding:0}
+    .docTitle{font-size:17px;margin-bottom:14px}
+    h2.sec{font-size:12.5px;margin:14px 0 6px}
+    th,td{font-size:9.5px;padding:3px 4px}
+    td.deptCell{width:64px}
+    .cell:empty::before{content:''}
+    table{page-break-inside:auto}
+    tr{page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>📝 기획회의 회의록</h1>
+  <div class="sp">
+    <button class="btn ghost" id="btnList">📋 지난 회의록</button>
+    <button class="btn ghost" id="btnLoad">↻ 월중계획 불러오기</button>
+    <button class="btn ghost" id="btnPdf">📄 PDF로 저장</button>
+    <a class="btn ghost" id="btnHome" href="학교_업무_대시보드.html">🏠 대시보드</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="bar noprint">
+    <div><label>회의 날짜</label><input type="date" id="meetDate"></div>
+    <div><label>주간 (월요일)</label><input type="date" id="weekStart"></div>
+    <button class="btn line sm" id="btnThisWeek">이번 주로</button>
+    <button class="btn line sm" id="btnTrim">🗑 줄 지우기</button>
+    <span class="trimMsg">지울 줄 오른쪽의 ✕ 를 누르세요</span>
+    <span id="planInfo" style="font-size:12px;font-weight:700"></span>
+    <span class="saved" id="savedMark">✔ 자동 저장됨</span>
+  </div>
+
+  <div class="paper" id="paper">
+    <h1 class="docTitle" id="docTitle">기획회의 회의록</h1>
+
+    <h2 class="sec">1. 부서별 공유내용 (전교사 공유할 업무 및 행사 안내)</h2>
+    <table id="tbl1">
+      <thead><tr id="head1"></tr></thead>
+      <tbody id="body1"></tbody>
+    </table>
+    <div class="addRow noprint"><button id="addDept">+ 부서 추가</button></div>
+    <p class="note noprint">칸을 눌러 바로 입력하세요. 줄바꿈은 Enter, 입력하는 즉시 저장됩니다.</p>
+
+    <h2 class="sec">2. 협의내용 및 안내</h2>
+    <table id="tbl2">
+      <thead><tr><th style="width:120px">주제</th><th>내용</th><th style="width:90px">비고</th><th class="rm"></th></tr></thead>
+      <tbody id="body2"></tbody>
+    </table>
+    <div class="addRow noprint"><button id="addAgenda">+ 안건 추가</button></div>
+
+    <h2 class="sec">3. 교장, 교감선생님 전달사항</h2>
+    <table id="tbl3">
+      <thead><tr><th style="width:38px">순</th><th>내용</th><th style="width:90px">비고</th><th class="rm"></th></tr></thead>
+      <tbody id="body3"></tbody>
+    </table>
+    <div class="addRow noprint"><button id="addWord">+ 말씀 추가</button></div>
+  </div>
+</main>
+
+<div class="back" id="back"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   기획회의 회의록 — 단일 HTML (외부 라이브러리 없음)
+   저장: 브라우저 localStorage / 인쇄 → PDF로 저장
+   ========================================================= */
+const LS = 'school-meeting-minutes-v1';
+const DASH_LS = 'school-dashboard-v1';        // 대시보드가 쓰는 저장소 (같은 폴더 = 같은 저장소)
+const DEF_DEPTS = ['학사일정','교무부','연구부','교육과정부','학생부','교육정보부','진로상담부',
+                   '인문사회부','수리과학부','특수교육','예술체육부','기숙사부','1,2,3학년부','교육행정'];
+const DOW = ['일','월','화','수','목','금','토'];
+
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let M = { depts: DEF_DEPTS.slice(), weeks: {} };
+let weekKey = '';          // 월요일 날짜 = 그 주 회의록의 열쇠
+let incoming = null;       // 대시보드에서 넘어온 월중계획 자료
+
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2200);
+}
+function save(){
+  try{ localStorage.setItem(LS, JSON.stringify(M)); }catch(e){ toast('저장 공간이 부족합니다'); }
+  const s=$('savedMark');
+  s.textContent = '✔ 저장됨 ' + new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(LS);
+    if(raw) M = Object.assign(M, JSON.parse(raw));
+  }catch(e){}
+  if(!Array.isArray(M.depts) || !M.depts.length) M.depts = DEF_DEPTS.slice();
+  M.weeks = M.weeks || {};
+}
+function mondayOf(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const gap = (x.getDay()+6)%7;        // 월=0
+  x.setDate(x.getDate()-gap);
+  return x;
+}
+function weekDates(key){
+  const mon = new Date(key+'T00:00:00');
+  return [0,1,2,3,4].map(i=>{ const d=new Date(mon); d.setDate(d.getDate()+i); return d; });
+}
+function blankWeek(key){
+  const mon = new Date(key+'T00:00:00');
+  const fri = new Date(mon); fri.setDate(fri.getDate()+4);
+  return { meetDate: ymd(fri), rows:{}, agenda:[{topic:'',content:'',note:''}], words:[{content:'',note:''}] };
+}
+function cur(){
+  if(!M.weeks[weekKey]) M.weeks[weekKey] = blankWeek(weekKey);
+  const w = M.weeks[weekKey];
+  w.rows = w.rows || {}; w.agenda = w.agenda || []; w.words = w.words || [];
+  return w;
+}
+
+/* ---------- 그리기 ---------- */
+function renderAll(){
+  const w = cur();
+  const days = weekDates(weekKey);
+  const md = new Date(w.meetDate+'T00:00:00');
+  $('docTitle').textContent = `기획회의 회의록 (${md.getMonth()+1}/${md.getDate()} ${DOW[md.getDay()]})`;
+  $('meetDate').value = w.meetDate;
+  $('weekStart').value = weekKey;
+
+  // 표1 머리글
+  $('head1').innerHTML = `<th style="width:96px">부서</th>` +
+    days.map(d=>`<th>${DOW[d.getDay()]} (${d.getMonth()+1}/${d.getDate()})</th>`).join('') +
+    `<th class="rm"></th>`;
+
+  // 표1 본문
+  $('body1').innerHTML = M.depts.map((name,ri)=>{
+    const row = w.rows[name] || [];
+    return `<tr data-dept="${esc(name)}">
+      <td class="deptCell"><div class="cell" contenteditable="true" data-k="dept" data-ri="${ri}" data-ph="부서">${esc(name)}</div></td>
+      ${[0,1,2,3,4].map(ci=>`<td><div class="cell" contenteditable="true" data-k="w" data-ri="${ri}" data-ci="${ci}">${esc(row[ci]||'')}</div></td>`).join('')}
+      <td class="rm"><button class="rmBtn" data-rm="dept" data-ri="${ri}" title="이 줄 지우기">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  // 표2 협의내용
+  $('body2').innerHTML = w.agenda.map((a,i)=>`
+    <tr>
+      <td><div class="cell" contenteditable="true" data-k="ag-topic" data-i="${i}" data-ph="주제">${esc(a.topic)}</div></td>
+      <td><div class="cell" contenteditable="true" data-k="ag-content" data-i="${i}" data-ph="회의에서 나온 내용을 적으세요">${esc(a.content)}</div></td>
+      <td><div class="cell" contenteditable="true" data-k="ag-note" data-i="${i}"></div></td>
+      <td class="rm"><button class="rmBtn" data-rm="ag" data-i="${i}" title="이 줄 지우기">✕</button></td>
+    </tr>`).join('');
+
+  // 표3 교장·교감 전달사항
+  $('body3').innerHTML = w.words.map((p,i)=>`
+    <tr>
+      <td class="numCell">${i+1}</td>
+      <td><div class="cell" contenteditable="true" data-k="wd-content" data-i="${i}" data-ph="교장·교감선생님 말씀을 적으세요">${esc(p.content)}</div></td>
+      <td><div class="cell" contenteditable="true" data-k="wd-note" data-i="${i}"></div></td>
+      <td class="rm"><button class="rmBtn" data-rm="wd" data-i="${i}" title="이 줄 지우기">✕</button></td>
+    </tr>`).join('');
+
+  refreshPlanInfo();          // 월중계획 연결 상태 표시
+}
+
+/* ---------- 입력하면 곧바로 저장 ---------- */
+$('paper').addEventListener('input', e=>{
+  const c = e.target.closest('.cell'); if(!c) return;
+  const w = cur();
+  const v = c.innerText.replace(/ /g,' ').replace(/\n$/,'');
+  const k = c.dataset.k;
+  if(k === 'dept'){
+    const ri = +c.dataset.ri, old = M.depts[ri], name = v.trim() || old;
+    if(name !== old){
+      if(w.rows[old]){ w.rows[name] = w.rows[old]; delete w.rows[old]; }
+      M.depts[ri] = name;
+      c.closest('tr').dataset.dept = name;
+    }
+  }else if(k === 'w'){
+    const name = M.depts[+c.dataset.ri];
+    w.rows[name] = w.rows[name] || [];
+    w.rows[name][+c.dataset.ci] = v;
+  }else if(k.startsWith('ag-')){
+    w.agenda[+c.dataset.i][k.slice(3)] = v;
+  }else if(k.startsWith('wd-')){
+    w.words[+c.dataset.i][k.slice(3)] = v;
+  }
+  save();
+});
+
+/* ---------- 줄 추가·삭제 ---------- */
+$('paper').addEventListener('click', e=>{
+  const b = e.target.closest('[data-rm]'); if(!b) return;
+  const w = cur();
+  if(b.dataset.rm === 'dept'){
+    const ri = +b.dataset.ri, name = M.depts[ri];
+    if(!confirm(`'${name}' 줄을 지울까요?`)) return;
+    M.depts.splice(ri,1); delete w.rows[name];
+  }else if(b.dataset.rm === 'ag'){
+    w.agenda.splice(+b.dataset.i,1);
+  }else{
+    w.words.splice(+b.dataset.i,1);
+  }
+  save(); renderAll();
+});
+$('addDept').onclick = ()=>{
+  M.depts.push('새 부서'); save(); renderAll();
+  const rows = $('body1').querySelectorAll('tr');
+  const last = rows[rows.length-1].querySelector('.cell');
+  last.focus(); document.execCommand && document.execCommand('selectAll', false, null);
+};
+$('addAgenda').onclick = ()=>{ cur().agenda.push({topic:'',content:'',note:''}); save(); renderAll(); focusLast('body2'); };
+$('addWord').onclick   = ()=>{ cur().words.push({content:'',note:''});           save(); renderAll(); focusLast('body3'); };
+function focusLast(id){
+  const rows = $(id).querySelectorAll('tr');
+  if(rows.length) rows[rows.length-1].querySelector('.cell').focus();
+}
+
+/* ---------- 날짜 / 주간 ---------- */
+$('meetDate').onchange = ()=>{ cur().meetDate = $('meetDate').value; save(); renderAll(); };
+$('weekStart').onchange = ()=>{
+  const d = new Date($('weekStart').value+'T00:00:00');
+  if(isNaN(d)) return;
+  weekKey = ymd(mondayOf(d));
+  renderAll(); autoFillIfEmpty();          // 주간을 바꿔도 그 주 월중계획이 따라옴
+};
+$('btnThisWeek').onclick = ()=>{ weekKey = ymd(mondayOf(new Date())); renderAll(); autoFillIfEmpty(); };
+$('btnTrim').onclick = ()=>{
+  const on = document.body.classList.toggle('trim');
+  $('btnTrim').textContent = on ? '✔ 지우기 끝내기' : '🗑 줄 지우기';
+};
+
+/* =========================================================
+   월중계획 자료 가져오기
+   ① 대시보드 저장소에서 바로 읽기 (주간을 바꿔도 언제나 최신)
+   ② 대시보드에서 넘어온 주소(#plan=) 자료
+   ③ 지난번에 받아 둔 사본
+   ========================================================= */
+function readPlan(){
+  // ① 대시보드가 저장해 둔 자료를 그대로 읽는다
+  try{
+    const raw = localStorage.getItem(DASH_LS);
+    if(raw){
+      const D = JSON.parse(raw);
+      const evs = (D.events || []).slice();
+      Object.keys(D.sheetData || {}).forEach(k=>{
+        const d = D.sheetData[k];
+        if(d && d.events) evs.push(...d.events);
+      });
+      if(evs.length){
+        const list = evs.filter(e=>e && e.date && e.title)
+                        .map(e=>({date:e.date, dept:e.dept, title:e.title}));
+        M.plan = {events:list.slice(0,3000), at:new Date().toLocaleString('ko-KR')};   // 사본 보관
+        return {events:list, src:'대시보드'};
+      }
+    }
+  }catch(e){}
+  // ② 주소로 넘어온 자료
+  if(incoming && incoming.events && incoming.events.length){
+    M.plan = {events:incoming.events, at:new Date().toLocaleString('ko-KR')};
+    return {events:incoming.events, src:'대시보드에서 받음'};
+  }
+  // ③ 지난번 사본
+  if(M.plan && M.plan.events && M.plan.events.length)
+    return {events:M.plan.events, src:'저장된 사본'};
+  return {events:[], src:''};
+}
+// 이 주간에 아직 아무것도 안 적혀 있는지
+function weekIsEmpty(){
+  const w = cur();
+  return !Object.keys(w.rows).some(k => (w.rows[k]||[]).some(v => String(v||'').trim()));
+}
+function fillFromPlan(silent){
+  const plan = readPlan();
+  const days = weekDates(weekKey).map(ymd);
+  const mine = plan.events.filter(e => days.indexOf(e.date) >= 0);
+
+  if(!plan.events.length){
+    updatePlanInfo(plan, 0);
+    if(!silent) toast('월중계획 자료를 찾지 못했습니다 — 대시보드를 한 번 열었다 오세요');
+    return 0;
+  }
+  const w = cur();
+  let n = 0;
+  mine.forEach(ev=>{
+    const ci = days.indexOf(ev.date);
+    const name = ev.dept || '기타';
+    if(!M.depts.includes(name)) M.depts.push(name);
+    w.rows[name] = w.rows[name] || [];
+    const before = w.rows[name][ci] || '';
+    if(before.split('\n').indexOf(ev.title) >= 0) return;     // 이미 있으면 건너뜀
+    w.rows[name][ci] = before ? before+'\n'+ev.title : ev.title;
+    n++;
+  });
+  save(); renderAll();
+  if(!silent){
+    if(n) toast(`월중계획에서 ${n}건을 넣었습니다`);
+    else if(mine.length) toast('이미 다 들어와 있습니다');
+    else toast(`${days[0].slice(5).replace('-','/')} ~ ${days[4].slice(5).replace('-','/')} 주간에는 월중계획 일정이 없습니다`);
+  }
+  return n;
+}
+// 지금 연결 상태를 화면에 보여 준다
+function updatePlanInfo(plan, weekCount){
+  const box = $('planInfo'); if(!box) return;
+  if(!plan.events.length){
+    box.innerHTML = '⚠️ <b>월중계획 자료 없음</b> — 대시보드를 한 번 열어 주세요';
+    box.style.color = '#e5484d';
+    return;
+  }
+  box.innerHTML = `🔗 월중계획 연결됨 · 전체 ${plan.events.length}건 · <b>이 주간 ${weekCount}건</b>`;
+  box.style.color = '#22a06b';
+}
+// 아무것도 안 적힌 주간이면 월중계획을 자동으로 채운다
+function autoFillIfEmpty(){
+  if(!weekIsEmpty()) return;
+  const n = fillFromPlan(true);
+  if(n) toast(`월중계획에서 ${n}건을 자동으로 넣었습니다`);
+}
+function refreshPlanInfo(){
+  const plan = readPlan();
+  const days = weekDates(weekKey).map(ymd);
+  updatePlanInfo(plan, plan.events.filter(e=>days.indexOf(e.date)>=0).length);
+}
+$('btnLoad').onclick = ()=> fillFromPlan(false);
+
+/* ---------- 지난 회의록 ---------- */
+function openModal(html){ $('modal').innerHTML = html; $('back').classList.add('on'); }
+function closeModal(){ $('back').classList.remove('on'); }
+$('back').onclick = e=>{ if(e.target===$('back')) closeModal(); };
+
+$('btnList').onclick = ()=>{
+  const keys = Object.keys(M.weeks).sort().reverse();
+  const rows = keys.map(k=>{
+    const w = M.weeks[k];
+    const days = weekDates(k);
+    const cnt = Object.values(w.rows||{}).reduce((a,r)=>a+r.filter(Boolean).length,0);
+    const md = new Date((w.meetDate||k)+'T00:00:00');
+    return `<div class="wkRow">
+      <div>
+        <div class="t">${md.getMonth()+1}/${md.getDate()} (${DOW[md.getDay()]}) 기획회의</div>
+        <div class="s">${days[0].getMonth()+1}/${days[0].getDate()} ~ ${days[4].getMonth()+1}/${days[4].getDate()} 주간 ·
+          공유 ${cnt}건 · 안건 ${(w.agenda||[]).filter(a=>a.topic||a.content).length}건</div>
+      </div>
+      <button class="btn line sm" data-open="${k}" style="margin-left:auto">열기</button>
+      <button class="rmBtn" data-del="${k}" title="지우기">✕</button>
+    </div>`;
+  }).join('') || `<div class="hint">저장된 회의록이 아직 없습니다.</div>`;
+  openModal(`<h3>📋 지난 회의록</h3>${rows}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
+      <button class="btn line sm" id="mExport">백업 저장</button>
+      <button class="btn line sm" id="mImport">백업 불러오기</button>
+      <button class="btn" id="mClose">닫기</button>
+    </div>`);
+  $('mClose').onclick = closeModal;
+  $('mExport').onclick = ()=>{
+    const blob = new Blob([JSON.stringify(M,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=`회의록_백업_${ymd(new Date())}.json`; a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  $('mImport').onclick = ()=>{
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.json';
+    inp.onchange=()=>{
+      const f=inp.files[0]; if(!f) return;
+      const r=new FileReader();
+      r.onload=()=>{ try{ M=Object.assign(M,JSON.parse(r.result)); save(); closeModal(); renderAll(); toast('불러왔습니다'); }
+                     catch(e){ toast('백업 파일을 읽을 수 없습니다'); } };
+      r.readAsText(f,'utf-8');
+    };
+    inp.click();
+  };
+  $('modal').addEventListener('click', e=>{
+    const o=e.target.closest('[data-open]');
+    if(o){ weekKey=o.dataset.open; closeModal(); renderAll(); return; }
+    const d=e.target.closest('[data-del]');
+    if(d){
+      if(!confirm('이 회의록을 지울까요?')) return;
+      delete M.weeks[d.dataset.del]; save(); closeModal(); renderAll(); toast('지웠습니다');
+    }
+  });
+};
+
+/* ---------- PDF 저장(인쇄) ---------- */
+$('btnPdf').onclick = ()=>{
+  toast('인쇄 창에서 프린터를 "PDF로 저장"으로 고르세요');
+  setTimeout(()=>window.print(), 400);
+};
+
+/* ---------- 시작 ---------- */
+(function init(){
+  load();
+  // 대시보드에서 넘어온 자료 (주소 뒤 #데이터)
+  try{
+    const h = location.hash.replace(/^#/,'');
+    if(h.startsWith('plan=')) incoming = JSON.parse(decodeURIComponent(h.slice(5)));
+  }catch(e){ incoming = null; }
+
+  weekKey = (incoming && incoming.week) ? incoming.week : ymd(mondayOf(new Date()));
+  const isNew = !M.weeks[weekKey];
+  if(incoming && incoming.meetDate && isNew) cur().meetDate = incoming.meetDate;
+  renderAll();
+  autoFillIfEmpty();          // 빈 주간이면 월중계획을 자동으로 채움
+  save();
+})();
+</script>
+</body>
+</html>

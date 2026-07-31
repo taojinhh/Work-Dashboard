@@ -1,0 +1,1391 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>학교 업무 대시보드</title>
+<style>
+  :root{
+    --bg:#f4f5fa;
+    --card:#ffffff;
+    --line:#e8e9f2;
+    --text:#2c2f45;
+    --muted:#8a8fa8;
+    --brand:#6c5ce7;
+    --brand2:#9b6ce7;
+    --radius:16px;
+    --shadow:0 2px 10px rgba(60,60,110,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Pretendard","맑은 고딕","Malgun Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:14px; line-height:1.45;
+  }
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:14px}
+
+  /* ---------- 배경 그림 ---------- */
+  #bgLayer{position:fixed;inset:0;z-index:0;display:none;background-size:cover;background-position:center}
+  #bgLayer::after{content:'';position:absolute;inset:0;background:rgba(244,245,250,var(--veil,.35))}
+  body.hasbg #bgLayer{display:block}
+  .topbar,.wrap{position:relative;z-index:1}
+
+  /* ---------- 상단 바 ---------- */
+  .topbar{
+    background:linear-gradient(100deg,var(--brand) 0%, var(--brand2) 60%, #a78bfa 100%);
+    color:#fff; padding:18px 26px; display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:10px;
+  }
+  .topbar h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.5px}
+  .topbar .sub{margin:2px 0 0;font-size:12px;opacity:.75}
+  .topActions{display:flex;align-items:center;gap:8px}
+  .userLabel{font-size:12.5px;opacity:.9;margin-right:4px}
+  .btn{
+    border:0;border-radius:9px;padding:7px 13px;font-size:13px;font-weight:600;
+    background:var(--brand);color:#fff;
+  }
+  .btn.ghost{background:rgba(255,255,255,.22);color:#fff}
+  .btn.ghost:hover{background:rgba(255,255,255,.34)}
+  .btn.line{background:#fff;color:var(--text);border:1px solid var(--line)}
+  .btn.line:hover{background:#f7f7fc}
+  .btn.sm{padding:5px 10px;font-size:12.5px}
+  .btn.danger{background:#ef4444}
+
+  /* ---------- 레이아웃 ---------- */
+  .wrap{padding:18px 26px 40px;max-width:1680px;margin:0 auto}
+  .row{display:grid;gap:16px;margin-bottom:16px}
+  .row-top{grid-template-columns:1fr 250px 250px}
+  .row-main{grid-template-columns:minmax(0,1fr) 470px}
+  @media(max-width:1200px){
+    .row-top{grid-template-columns:1fr 1fr}
+    .row-main{grid-template-columns:1fr}
+  }
+  @media(max-width:760px){ .row-top{grid-template-columns:1fr} .wrap{padding:14px} }
+
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px}
+  .cardTitle{font-size:13.5px;font-weight:700;color:#4b4f6b;margin:0 0 12px;display:flex;align-items:center;gap:6px}
+
+  /* ---------- 필터 ---------- */
+  .filterHead{border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px;font-weight:700;color:#4b4f6b}
+  .filterRow{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+  .filterRow:last-child{margin-bottom:0}
+  .filterLabel{flex:0 0 42px;font-weight:700;color:#6b6f8a;padding-top:5px;font-size:13px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .fchip{
+    border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;
+    font-size:12.5px;font-weight:600;color:#7a7f99;
+  }
+  .fchip.on{background:#2f3350;border-color:#2f3350;color:#fff}
+  .fchip.dept.on{color:#fff}
+
+  /* ---------- 시트/링크 카드 ---------- */
+  .syncPill{
+    width:100%;border:0;border-radius:10px;padding:8px;margin-bottom:10px;
+    background:linear-gradient(100deg,#6c5ce7,#8b7bf0);color:#fff;font-weight:700;font-size:12.5px;
+  }
+  .syncPill.off{background:#eceef7;color:#8a8fa8}
+  .itemList{display:flex;flex-direction:column;gap:7px}
+  .item{display:flex;align-items:center;gap:4px}
+  .item .main{
+    flex:1;min-width:0;display:block;text-align:left;border:0;border-radius:9px;padding:9px 10px;
+    background:#eefaf1;color:#256b45;font-weight:600;font-size:12.5px;text-decoration:none;cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .item .main:hover{filter:brightness(.96)}
+  .linkCard .item .main{background:#eef7ef;color:#2a6b46}
+  .item .main.empty{background:#f4f5fa;color:#9aa0b8;border:1px dashed #d7dae8}
+  .iconBtn{
+    border:0;background:transparent;color:#a8adc4;border-radius:8px;padding:5px 6px;font-size:13px;line-height:1;
+  }
+  .iconBtn:hover{background:#f1f2f9;color:#5a5f7a}
+  .addBtn{
+    width:100%;margin-top:8px;border:1px dashed #d7dae8;background:#fff;color:#8a8fa8;
+    border-radius:9px;padding:7px;font-size:12.5px;font-weight:600;
+  }
+  .addBtn:hover{color:var(--brand);border-color:var(--brand)}
+  .syncMsg{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.4}
+  .sdot{width:7px;height:7px;border-radius:50%;background:#cfd3e2;flex:0 0 7px}
+  .sdot.ok{background:#22c55e}.sdot.err{background:#ef4444}.sdot.load{background:#f59e0b}
+
+  /* ---------- 달력 ---------- */
+  .calHead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .calHead h2{margin:0;font-size:20px;font-weight:800}
+  .yearBox{display:flex;align-items:center;gap:4px;background:#f4f5fa;border-radius:10px;padding:4px 6px}
+  .yearBox input{width:64px;border:1px solid var(--line);border-radius:7px;padding:5px 6px;
+    text-align:center;font-weight:800;font-size:13.5px;background:#fff;color:var(--text)}
+  .yearBox input::-webkit-outer-spin-button,.yearBox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .yUnit{font-size:12.5px;font-weight:700;color:#6b6f8a;margin-right:2px}
+  .yBtn{border:0;background:transparent;color:#7a7f99;font-size:12px;padding:4px 6px;border-radius:7px;font-weight:800}
+  .yBtn:hover{background:#e7e9f5;color:var(--brand)}
+  .calNote{font-size:12px;color:#7a7f99;background:#f4f5fa;border-radius:8px;padding:7px 10px;margin:12px 0}
+  .monthTabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+  .mtab{border:0;background:#f4f5fa;color:#6b6f8a;border-radius:8px;padding:7px 13px;font-weight:700;font-size:13px}
+  .mtab.on{background:var(--brand);color:#fff}
+  .grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .gh{background:#fff;text-align:center;font-weight:700;font-size:12.5px;padding:8px 0;color:#4b4f6b}
+  .gh.sun{color:#e5484d}.gh.sat{color:#3b82f6}
+  .cell{background:#fff;min-height:104px;padding:5px 5px 4px;display:flex;flex-direction:column;gap:3px}
+  .cell.empty{background:#fafbfe}
+  .cell.sel{background:#f6f4ff;box-shadow:inset 0 0 0 2px var(--brand)}
+  .cell .dnum{font-size:12px;font-weight:700;color:#5a5f7a;padding:1px 3px}
+  .cell .dnum.sun{color:#e5484d}.cell .dnum.sat{color:#3b82f6}
+  .cell.today .dnum{background:var(--brand);color:#fff;border-radius:6px;display:inline-block;padding:1px 6px;width:fit-content}
+  .ev{
+    display:flex;align-items:center;gap:4px;font-size:11.5px;border-radius:5px;padding:3px 5px;
+    background:var(--c-bg);color:var(--c-fg);border-left:3px solid var(--c);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;
+  }
+  .more{font-size:11px;color:#9aa0b8;padding:1px 4px;text-align:left;border:0;background:transparent}
+  .calFoot{font-size:11.5px;color:var(--muted);margin-top:10px;text-align:right}
+
+  /* ---------- TODAY 패널 ---------- */
+  .todayHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:2px solid var(--brand);border-radius:12px;padding:9px 12px}
+  .todayPill{background:var(--brand);color:#fff;border-radius:999px;padding:3px 12px;font-size:12px;font-weight:800}
+  .todayDate{font-size:17px;font-weight:800}
+  .todayGo{margin-left:auto;border:0;background:transparent;color:#e5484d;font-weight:700;font-size:12.5px}
+  .grp{margin-top:14px}
+  .grpHead{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:8px;font-weight:700;font-size:13px}
+  .grpHead .cnt{margin-left:auto;background:rgba(255,255,255,.75);border-radius:6px;padding:0 7px;font-size:11.5px}
+  .erow{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border-bottom:1px solid #f1f2f9}
+  .badge{flex:0 0 auto;border-radius:7px;padding:3px 8px;font-size:11.5px;font-weight:700;text-align:center;min-width:44px}
+  .erow .txt{flex:1;min-width:0;font-size:13.5px;font-weight:600;word-break:break-word;white-space:pre-wrap}
+  .erow .src{font-size:11px;color:#a8adc4;margin-top:2px}
+  .emptyMsg{color:#a8adc4;font-size:13px;text-align:center;padding:26px 0}
+  .addForm{display:flex;gap:7px;margin-top:12px;align-items:center;flex-wrap:wrap}
+  .addForm select{border:1px solid var(--line);border-radius:9px;padding:9px 8px;background:#fff}
+  .addForm textarea{
+    flex:1;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;resize:none;
+    height:38px;line-height:1.3;
+  }
+  .addForm .btn{padding:9px 18px}
+
+  /* ---------- 모달 ---------- */
+  .back{position:fixed;inset:0;background:rgba(30,32,55,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .back.on{display:flex}
+  .modal{background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:22px 24px}
+  .modal h3{margin:0 0 4px;font-size:18px}
+  .modal .desc{color:var(--muted);font-size:12.5px;margin:0 0 16px;line-height:1.6}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-size:12.5px;font-weight:700;color:#5a5f7a;margin-bottom:5px}
+  .fld input,.fld select,.fld textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+  .fld textarea{min-height:140px;resize:vertical;line-height:1.5}
+  .modalFoot{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+  .modalFoot .left{margin-right:auto}
+  .secTitle{font-size:13px;font-weight:800;color:#4b4f6b;margin:20px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
+  .editRow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .editRow input[type=text]{flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+  .editRow input[type=color]{width:36px;height:34px;border:1px solid var(--line);border-radius:8px;padding:2px;background:#fff}
+  #bgPreview{height:110px;border:1px solid var(--line);border-radius:10px;background:#f4f5fa center/cover no-repeat;
+    display:flex;align-items:center;justify-content:center;color:#a8adc4;font-size:12.5px}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.6;background:#f8f8fd;border-radius:8px;padding:9px 11px;margin-top:6px}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+    background:#2f3350;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;
+    opacity:0;pointer-events:none;transition:opacity .25s;z-index:99;
+  }
+  .toast.on{opacity:1}
+
+  /* ---------- 인쇄 ---------- */
+  @media print{
+    body{background:#fff}
+    .topbar{background:#fff;color:#000;padding:0 0 10px;border-bottom:2px solid #333}
+    .topActions,.row-top,.todayCard,.monthTabs,.calNote,.addForm,.more,#bgLayer{display:none!important}
+    .row-main{grid-template-columns:1fr}
+    .card{box-shadow:none;padding:0}
+    .cell{min-height:92px}
+    .wrap{padding:0}
+  }
+</style>
+</head>
+<body>
+
+<div id="bgLayer"></div>
+
+<header class="topbar">
+  <div>
+    <h1 id="ttlSchool">우리학교 업무 대시보드</h1>
+    <p class="sub" id="ttlSub">made by 담당교사</p>
+  </div>
+  <div class="topActions">
+    <span class="userLabel" id="ttlUser"></span>
+    <button class="btn ghost" id="btnSettings">편집</button>
+    <button class="btn ghost" id="btnPrint">🖨 인쇄</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 상단 3칸 -->
+  <section class="row row-top">
+    <div class="card">
+      <div class="filterHead">🔍 눌러서 필터 — 여러 개 동시 선택 가능</div>
+      <div class="filterRow">
+        <div class="filterLabel">구분</div>
+        <div class="chips" id="typeChips"></div>
+      </div>
+      <div class="filterRow">
+        <div class="filterLabel">부서</div>
+        <div class="chips" id="deptChips"></div>
+      </div>
+    </div>
+
+    <div class="card sheetCard">
+      <p class="cardTitle">📁 자료 파일 올리기</p>
+      <button class="syncPill" id="btnSample">📄 샘플 양식 내려받기</button>
+      <div class="itemList" id="sheetList"></div>
+      <button class="addBtn" id="btnAddSheet">+ 자료 추가</button>
+      <div class="syncMsg" id="syncMsg"></div>
+    </div>
+
+    <div class="card linkCard">
+      <p class="cardTitle">🔗 바로가기 링크</p>
+      <div class="itemList" id="linkList"></div>
+      <button class="addBtn" id="btnAddLink">+ 링크 추가</button>
+    </div>
+  </section>
+
+  <!-- 달력 + TODAY -->
+  <section class="row row-main">
+    <div class="card calCard">
+      <div class="calHead">
+        <h2 id="calTitle">월중계획</h2>
+        <div class="yearBox">
+          <button class="yBtn" id="btnPrevYear" title="이전 학년도">◀</button>
+          <input type="number" id="baseYear" min="2000" max="2100" step="1" inputmode="numeric">
+          <span class="yUnit">학년도</span>
+          <button class="yBtn" id="btnNextYear" title="다음 학년도">▶</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-left:auto">
+          <a class="btn sm" id="btnMinutes" target="_blank" rel="noopener"
+             title="선택한 날이 들어 있는 주의 일정을 회의록으로 가져갑니다">📝 회의록</a>
+          <button class="btn sm" id="btnBulk">+ 월중 입력</button>
+        </div>
+      </div>
+      <div class="calNote">📅 날짜를 클릭하면 해당 일정을 오른쪽 TODAY · 오늘에서 볼 수 있어요!</div>
+      <div class="monthTabs" id="monthTabs"></div>
+      <div class="grid" id="calGrid"></div>
+      <div class="calFoot" id="calFoot"></div>
+    </div>
+
+    <aside class="card todayCard">
+      <div class="todayHead">
+        <span class="todayPill">TODAY · 오늘</span>
+        <span class="todayDate" id="todayDate"></span>
+        <button class="todayGo" id="btnToday">오늘로 이동 →</button>
+      </div>
+      <div id="todayBody"></div>
+      <div class="addForm">
+        <select id="addType"></select>
+        <select id="addDept"></select>
+        <textarea id="addText" placeholder="일정 내용 입력 (엔터=줄바꿈) → 추가 버튼"></textarea>
+        <button class="btn" id="btnAdd">추가</button>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<div class="back" id="back"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   학교 업무 대시보드 — 단일 HTML (외부 라이브러리 없음)
+   저장: 브라우저 localStorage (이 PC · 이 브라우저에만 저장)
+   ========================================================= */
+
+const LS = 'school-dashboard-v1';
+const PALETTE = ['#7c6cf0','#22a06b','#e9558f','#f59e0b','#3b82f6','#14b8a6','#ef4444','#8b5cf6','#0ea5e9','#f97316'];
+const DEF_TYPES = ['행사','계획','회의','제출','기타','출장'];
+const DEF_DEPTS = ['교무기획부','학생인권안전부','미래교육연구부','교육행정실','출장·복무','운동부'];
+
+/* ---------- 상태 ---------- */
+let S = {
+  school:'우리학교 업무 대시보드',
+  sub:'made by 담당교사',
+  user:'',
+  types: DEF_TYPES.slice(),
+  depts: DEF_DEPTS.map((n,i)=>({name:n, color:PALETTE[i%PALETTE.length]})),
+  sheets: [],            // 자료 파일 {id,name,fileName,defType,defDept}
+  links: [],             // {id,name,url}
+  events: [],            // 직접 입력한 일정 {id,date,type,dept,title}
+  sheetData: {},         // 자료 id -> {events:[], at:'', status:'', msg:''}
+  baseYear: null,        // 보고 있는 학년도 (2026 = 2026.3 ~ 2027.2), 비어 있으면 오늘 기준
+  bg: null               // 배경 그림 {img:'data:image/jpeg;base64,...', veil:0.35}
+};
+
+let filterTypes = new Set();   // 비어있으면 = 전체
+let filterDepts = new Set();
+let view = null;               // {y,m}
+let selected = null;           // 'YYYY-MM-DD'
+
+/* ---------- 유틸 ---------- */
+const $ = id => document.getElementById(id);
+const uid = () => Math.random().toString(36).slice(2,9);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const todayStr = () => ymd(new Date());
+
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2200);
+}
+function save(){
+  try{ localStorage.setItem(LS, JSON.stringify(S)); return true; }
+  catch(e){ toast('저장 공간이 부족합니다'); return false; }
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(LS);
+    if(raw) S = Object.assign(S, JSON.parse(raw));
+  }catch(e){}
+  if(!Array.isArray(S.types)||!S.types.length) S.types = DEF_TYPES.slice();
+  if(!Array.isArray(S.depts)||!S.depts.length) S.depts = DEF_DEPTS.map((n,i)=>({name:n,color:PALETTE[i%PALETTE.length]}));
+  S.sheets = S.sheets||[]; S.links = S.links||[]; S.events = S.events||[]; S.sheetData = S.sheetData||{};
+}
+function deptColor(name){
+  const d = S.depts.find(x=>x.name===name);
+  if(d) return d.color;
+  let h=0; for(const c of String(name||'')) h=(h*31+c.charCodeAt(0))%PALETTE.length;
+  return PALETTE[h];
+}
+function hexA(hex, a){
+  const h = hex.replace('#','');
+  const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ---------- 배경 그림 ---------- */
+function applyBg(){
+  const bg = S.bg || {};
+  const layer = $('bgLayer');
+  if(bg.img){
+    layer.style.backgroundImage = `url("${bg.img}")`;
+    document.body.classList.add('hasbg');
+  }else{
+    layer.style.backgroundImage = '';
+    document.body.classList.remove('hasbg');
+  }
+  document.documentElement.style.setProperty('--veil', (bg.veil==null?0.35:bg.veil));
+}
+// 사진이 커도 저장되도록 크기를 줄여서 넣는다
+function shrinkImage(file, maxW, quality){
+  return new Promise((resolve, reject)=>{
+    const fr = new FileReader();
+    fr.onerror = ()=> reject(new Error('파일을 읽지 못했습니다'));
+    fr.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=> reject(new Error('그림 파일이 아닙니다'));
+      img.onload = ()=>{
+        const scale = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width*scale), h = Math.round(img.height*scale);
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0,0,w,h);        // 투명한 그림 대비
+        cx.drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', quality));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+function pickBackground(){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = async ()=>{
+    const f = inp.files[0]; if(!f) return;
+    const before = S.bg ? Object.assign({}, S.bg) : null;
+    try{
+      let data = await shrinkImage(f, 1920, 0.82);
+      if(data.length > 2600000) data = await shrinkImage(f, 1280, 0.7);   // 그래도 크면 더 줄임
+      if(data.length > 3600000) data = await shrinkImage(f, 1000, 0.6);
+      S.bg = {img:data, veil:(S.bg && S.bg.veil!=null) ? S.bg.veil : 0.35};
+      applyBg();
+      if(!save()){                                    // 저장 공간을 넘으면 되돌리기
+        S.bg = before; applyBg(); save();
+        toast('사진 용량이 너무 커서 저장하지 못했습니다 — 더 작은 그림을 써 주세요');
+        return;
+      }
+      refreshBgBox();
+      toast('배경 그림을 바꿨습니다');
+    }catch(e){ toast(e.message || '그림을 넣지 못했습니다'); }
+  };
+  inp.click();
+}
+function refreshBgBox(){          // 편집 창이 열려 있으면 미리보기도 갱신
+  const box = $('bgPreview'); if(!box) return;
+  const bg = S.bg || {};
+  box.style.backgroundImage = bg.img ? `url("${bg.img}")` : '';
+  box.textContent = bg.img ? '' : '아직 배경 그림이 없습니다';
+  const sl = $('bgVeil'); if(sl) sl.value = Math.round((bg.veil==null?0.35:bg.veil)*100);
+}
+
+/* ---------- 학년도 / 달력 기준 ----------
+   학년도는 3월에 시작해 이듬해 2월에 끝난다.
+   예) 2026학년도 = 2026년 3월 ~ 2027년 2월                        */
+const MONTH_ORDER = [3,4,5,6,7,8,9,10,11,12,1,2];
+function todayBase(d=new Date()){ return d.getMonth()+1>=3 ? d.getFullYear() : d.getFullYear()-1; }
+function curBase(){ return S.baseYear || todayBase(); }        // 사용자가 고른 학년도
+function yearOf(m){ const b=curBase(); return m>=3 ? b : b+1; }
+function setBase(y){
+  y = parseInt(y,10);
+  if(!y || y<2000 || y>2100) return;
+  S.baseYear = y;
+  view = {y: yearOf(view.m), m: view.m};
+  save(); renderCalendar(); renderToday();
+}
+
+/* ---------- 날짜 문자열 파싱 ---------- */
+function parseDate(str){
+  if(str==null) return null;
+  let s = String(str).trim();
+  if(!s) return null;
+  if(/^\d{5}(\.\d+)?$/.test(s)){                                 // 엑셀 날짜 일련번호
+    const n = parseFloat(s);
+    if(n > 20000 && n < 80000) return serialToDate(n);
+  }
+  let m = s.match(/Date\((\d{4}),(\d{1,2}),(\d{1,2})/);
+  if(m) return `${m[1]}-${pad(+m[2]+1)}-${pad(+m[3])}`;
+  m = s.match(/(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/);
+  if(m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  m = s.match(/^(\d{1,2})\s*[-./월]\s*(\d{1,2})/);              // 7/31, 7월 31일
+  if(m){ const mo=+m[1], dd=+m[2]; if(mo>=1&&mo<=12&&dd>=1&&dd<=31) return `${yearOf(mo)}-${pad(mo)}-${pad(dd)}`; }
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);                        // 20260731
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return null;
+}
+// "7/1 ~ 7/3" 처럼 범위 → 날짜 배열
+function expandRange(startRaw, endRaw){
+  const raw = String(startRaw||'');
+  let a=null, b=null;
+  if(/[~〜～]|--/.test(raw)){
+    const parts = raw.split(/[~〜～]|--/);
+    a = parseDate(parts[0]); b = parseDate(parts[1]);
+    if(a && !b && parts[1]){
+      const d = parts[1].match(/(\d{1,2})/);
+      if(d) b = a.slice(0,8)+pad(+d[1]);
+    }
+  } else {
+    a = parseDate(raw); b = parseDate(endRaw);
+  }
+  if(!a) return [];
+  if(!b || b<=a) return [a];
+  const out=[]; const cur=new Date(a+'T00:00:00'); const end=new Date(b+'T00:00:00');
+  let guard=0;
+  while(cur<=end && guard++<400){ out.push(ymd(cur)); cur.setDate(cur.getDate()+1); }
+  return out;
+}
+
+/* ---------- CSV 파서 ---------- */
+function parseCSV(text){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
+      else cur+=c;
+    }else{
+      if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c==='\r'){ /* skip */ }
+      else cur+=c;
+    }
+  }
+  row.push(cur); rows.push(row);
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+// 엑셀·시트에서 복사해 붙여넣은 표(탭 구분)도 함께 처리
+function parseTable(text){
+  const first = String(text).split('\n')[0]||'';
+  if(first.includes('\t')){
+    return String(text).split('\n').map(l=>l.replace(/\r/g,'').split('\t'))
+      .filter(r=>r.some(c=>String(c).trim()!==''));
+  }
+  return parseCSV(text);
+}
+
+/* =========================================================
+   엑셀(.xlsx) 읽기 — 외부 라이브러리 없이 브라우저 기능만 사용
+   xlsx 는 압축(zip) 파일이므로 직접 풀어서 표를 꺼낸다.
+   ========================================================= */
+async function unzip(buf){
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  // 끝에서 중앙 디렉터리(EOCD) 찾기
+  let eocd = -1;
+  for(let i=u8.length-22; i>=0 && i>u8.length-66000; i--){
+    if(dv.getUint32(i,true) === 0x06054b50){ eocd = i; break; }
+  }
+  if(eocd < 0) throw new Error('zip 아님');
+  const count = dv.getUint16(eocd+10,true);
+  let p = dv.getUint32(eocd+16,true);
+  const files = {};
+  const dec = new TextDecoder('utf-8');
+  for(let n=0; n<count; n++){
+    if(dv.getUint32(p,true) !== 0x02014b50) break;
+    const method = dv.getUint16(p+10,true);
+    const csize  = dv.getUint32(p+20,true);
+    const nlen   = dv.getUint16(p+28,true);
+    const elen   = dv.getUint16(p+30,true);
+    const clen   = dv.getUint16(p+32,true);
+    const lho    = dv.getUint32(p+42,true);
+    const name   = dec.decode(u8.subarray(p+46, p+46+nlen));
+    p += 46 + nlen + elen + clen;
+    // 로컬 헤더에서 실제 자료 시작 위치 계산
+    const lnlen = dv.getUint16(lho+26,true), lelen = dv.getUint16(lho+28,true);
+    const start = lho + 30 + lnlen + lelen;
+    const raw = u8.subarray(start, start + csize);
+    files[name] = {method, raw};
+  }
+  const out = {};
+  for(const name of Object.keys(files)){
+    if(!/^xl\/(worksheets\/sheet1\.xml|sharedStrings\.xml|workbook\.xml)$/.test(name)) continue;
+    const f = files[name];
+    if(f.method === 0){ out[name] = dec.decode(f.raw); continue; }
+    const ds = new DecompressionStream('deflate-raw');
+    const buf2 = await new Response(new Blob([f.raw]).stream().pipeThrough(ds)).arrayBuffer();
+    out[name] = dec.decode(new Uint8Array(buf2));
+  }
+  return out;
+}
+// 엑셀 날짜 일련번호(1900 기준) → 'YYYY-MM-DD'
+function serialToDate(n){
+  const d = new Date(Date.UTC(1899,11,30) + Math.round(n)*86400000);
+  return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate());
+}
+async function xlsxToRows(arrayBuffer){
+  const parts = await unzip(arrayBuffer);
+  const sheetXml = parts['xl/worksheets/sheet1.xml'];
+  if(!sheetXml) throw new Error('첫 번째 시트를 찾지 못했습니다');
+  const dom = new DOMParser();
+  let shared = [];
+  if(parts['xl/sharedStrings.xml']){
+    const sd = dom.parseFromString(parts['xl/sharedStrings.xml'],'application/xml');
+    shared = [...sd.getElementsByTagName('si')].map(si =>
+      [...si.getElementsByTagName('t')].map(t=>t.textContent).join(''));
+  }
+  const sd = dom.parseFromString(sheetXml,'application/xml');
+  const rows = [];
+  [...sd.getElementsByTagName('row')].forEach(rowEl=>{
+    const cells = [];
+    [...rowEl.getElementsByTagName('c')].forEach(c=>{
+      const ref = c.getAttribute('r')||'';
+      const col = (ref.match(/^[A-Z]+/)||['A'])[0];
+      let idx = 0; for(const ch of col) idx = idx*26 + (ch.charCodeAt(0)-64);
+      idx -= 1;
+      const t = c.getAttribute('t');
+      const vEl = c.getElementsByTagName('v')[0];
+      const isEl = c.getElementsByTagName('is')[0];
+      let val = '';
+      if(t === 's' && vEl) val = shared[+vEl.textContent] || '';
+      else if(t === 'inlineStr' && isEl) val = isEl.textContent;
+      else if(vEl) val = vEl.textContent;
+      while(cells.length < idx) cells.push('');
+      cells[idx] = val;
+    });
+    if(cells.some(c=>String(c).trim()!=='')) rows.push(cells);
+  });
+  return rows;
+}
+
+/* ---------- 파일 한 개 읽어서 표로 ---------- */
+async function readFileRows(file){
+  const name = file.name.toLowerCase();
+  if(name.endsWith('.xls'))
+    throw new Error('옛날 엑셀(.xls)은 읽지 못합니다. 엑셀에서 [다른 이름으로 저장] → .xlsx 또는 CSV 로 저장해 주세요.');
+  if(name.endsWith('.xlsx')) return await xlsxToRows(await file.arrayBuffer());
+  // CSV / TSV / TXT — 한글이 깨지지 않도록 인코딩 자동 판별
+  const buf = await file.arrayBuffer();
+  let text = new TextDecoder('utf-8').decode(buf);
+  if(/�/.test(text)){                       // 깨진 글자가 있으면 옛 한글 인코딩으로 재시도
+    try{ text = new TextDecoder('euc-kr').decode(buf); }catch(e){}
+  }
+  return parseTable(text.replace(/^﻿/,''));
+}
+
+/* ---------- 파일 올리기 → 달력 반영 (올리는 즉시 저장) ---------- */
+function pickFile(item){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.csv,.xlsx,.tsv,.txt';
+  inp.onchange = async ()=>{
+    const f = inp.files[0]; if(!f) return;
+    const slot = S.sheetData[item.id] = S.sheetData[item.id] || {events:[],at:'',status:'',msg:''};
+    slot.status='load'; renderSheets();
+    try{
+      const rows = await readFileRows(f);
+      const evs  = rowsToEvents(rows, item);
+      item.fileName = f.name;
+      slot.events = evs;
+      slot.at = new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      slot.status = evs.length ? 'ok' : 'err';
+      slot.msg = evs.length
+        ? `${evs.length}건 · ${f.name}`
+        : `0건 — 첫 줄을 [날짜/구분/부서/내용] 으로 맞춰 주세요`;
+      save(); renderAll();                       // 저장 후 곧바로 대시보드에 반영
+      const info = $('mFileInfo');               // 편집 창이 열려 있으면 그 안도 갱신
+      if(info) info.innerHTML = evs.length
+        ? `현재: <b>${esc(f.name)}</b> — 일정 ${evs.length}건 (${esc(slot.at)})`
+        : `<b>${esc(f.name)}</b> 을 읽었지만 일정이 없습니다. 첫 줄이 <b>날짜/구분/부서/내용</b> 인지 확인해 주세요.`;
+      toast(evs.length ? `${item.name}: 일정 ${evs.length}건을 넣었습니다` : '날짜를 읽지 못했습니다 — 샘플 양식을 확인해 주세요');
+    }catch(e){
+      slot.status='err'; slot.msg = e.message || '파일을 읽지 못했습니다';
+      save(); renderSheets(); toast(slot.msg);
+    }
+  };
+  inp.click();
+}
+
+/* ---------- 시트 표 → 일정 목록 ---------- */
+function rowsToEvents(rows, sheet){
+  if(!rows.length) return [];
+  const head = rows[0].map(h=>String(h).replace(/\s/g,''));
+  const find = keys => head.findIndex(h => keys.some(k=>h.includes(k)));
+  let iDate = find(['날짜','일자','일시','기간','date']);
+  let iEnd  = find(['종료','끝']);
+  let iType = find(['구분','유형','종류','분류']);
+  let iDept = find(['부서','담당','주관','업무']);
+  let iTitle= find(['내용','일정','행사','제목','계획','비고','활동']);
+  let body = rows.slice(1);
+  if(iDate < 0){                       // 머리글이 없는 시트 → 1열 날짜, 2열 내용
+    iDate = 0; iTitle = rows[0].length>1 ? 1 : 0; body = rows;
+  }
+  if(iTitle < 0) iTitle = iDate===0 ? 1 : 0;
+
+  const out=[];
+  body.forEach(r=>{
+    const dates = expandRange(r[iDate], iEnd>=0 ? r[iEnd] : '');
+    if(!dates.length) return;
+    const title = String(r[iTitle]!=null?r[iTitle]:'').trim();
+    if(!title) return;
+    const type = (iType>=0 && String(r[iType]||'').trim()) || sheet.defType || '기타';
+    const dept = (iDept>=0 && String(r[iDept]||'').trim()) || sheet.defDept || sheet.name;
+    dates.forEach(d=>out.push({
+      id:'s'+sheet.id+'-'+d+'-'+out.length,
+      date:d, type, dept, title, sheetId:sheet.id, sheetName:sheet.name
+    }));
+  });
+  return out;
+}
+
+/* ---------- 전체 일정 ---------- */
+function allEvents(){
+  const out = S.events.slice();
+  S.sheets.forEach(s=>{
+    const d = S.sheetData[s.id];
+    if(d && d.events) out.push(...d.events);
+  });
+  return out;
+}
+function passFilter(e){
+  if(filterTypes.size && !filterTypes.has(e.type)) return false;
+  if(filterDepts.size && !filterDepts.has(e.dept)) return false;
+  return true;
+}
+// 학사일정은 언제나 맨 위에 오도록
+function deptRank(name){ return /^학사일정/.test(String(name||'')) ? 0 : 1; }
+function eventsOf(date){
+  return allEvents().filter(e=>e.date===date && passFilter(e))
+    .sort((a,b)=> deptRank(a.dept)-deptRank(b.dept)
+               || (a.dept||'').localeCompare(b.dept||'')
+               || (a.title||'').localeCompare(b.title||''));
+}
+
+/* ---------- 렌더: 필터 ---------- */
+function renderFilters(){
+  // 시트에서 들어온 새로운 구분·부서도 칩으로 자동 추가
+  const uT=new Set(), uD=new Set();
+  allEvents().forEach(e=>{ if(e.type) uT.add(e.type); if(e.dept) uD.add(e.dept); });
+  const types = S.types.concat([...uT].filter(x=>!S.types.includes(x)));
+  const depts = S.depts.concat([...uD].filter(n=>!S.depts.some(d=>d.name===n)).map(n=>({name:n, color:deptColor(n)})));
+
+  const t = $('typeChips');
+  t.innerHTML = `<button class="fchip ${filterTypes.size?'':'on'}" data-t="__all">전체</button>` +
+    types.map(x=>`<button class="fchip ${filterTypes.has(x)?'on':''}" data-t="${esc(x)}">${esc(x)}</button>`).join('');
+  const d = $('deptChips');
+  d.innerHTML = `<button class="fchip ${filterDepts.size?'':'on'}" data-d="__all">전체</button>` +
+    depts.map(x=>{
+      const on = filterDepts.has(x.name);
+      const st = on ? `background:${x.color};border-color:${x.color};color:#fff` : `color:${x.color};border-color:${hexA(x.color,.4)}`;
+      return `<button class="fchip dept ${on?'on':''}" data-d="${esc(x.name)}" style="${st}">${esc(x.name)}</button>`;
+    }).join('');
+}
+$('typeChips').onclick = e=>{
+  const b=e.target.closest('[data-t]'); if(!b) return;
+  const v=b.dataset.t;
+  if(v==='__all') filterTypes.clear();
+  else filterTypes.has(v)?filterTypes.delete(v):filterTypes.add(v);
+  renderFilters(); renderCalendar(); renderToday();
+};
+$('deptChips').onclick = e=>{
+  const b=e.target.closest('[data-d]'); if(!b) return;
+  const v=b.dataset.d;
+  if(v==='__all') filterDepts.clear();
+  else filterDepts.has(v)?filterDepts.delete(v):filterDepts.add(v);
+  renderFilters(); renderCalendar(); renderToday();
+};
+
+/* ---------- 렌더: 시트 / 링크 ---------- */
+function renderSheets(){
+  $('sheetList').innerHTML = S.sheets.map(s=>{
+    const d = S.sheetData[s.id]||{};
+    const done = d.events && d.events.length;
+    return `<div class="item" data-id="${s.id}">
+      <span class="sdot ${d.status||''}"></span>
+      <button class="main ${done?'':'empty'}" data-act="upload"
+        title="${done?esc(s.fileName||'')+' — 눌러서 새 파일로 바꾸기':'눌러서 파일 올리기'}">📁 ${esc(s.name)}</button>
+      <button class="iconBtn" data-act="edit" title="이름 바꾸기·지우기">✎</button>
+    </div>`;
+  }).join('') || `<div style="font-size:12px;color:#a8adc4">아래 [+ 자료 추가] 로 시작하세요</div>`;
+
+  const msgs = S.sheets.filter(s=>S.sheetData[s.id] && S.sheetData[s.id].msg).map(s=>{
+    const d=S.sheetData[s.id];
+    return `· ${esc(s.name)}: ${esc(d.msg)}${d.at?' ('+d.at+')':''}`;
+  });
+  $('syncMsg').innerHTML = msgs.join('<br>') ||
+    '① 샘플 양식 내려받기 → ② 내용 채우기 → ③ 이름 단추를 눌러 파일 올리기';
+}
+function renderLinks(){
+  $('linkList').innerHTML = S.links.map(l=>{
+    const main = l.url
+      ? `<a class="main" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.url)}">🏠 ${esc(l.name)}</a>`
+      : `<button class="main empty" data-act="edit">🏠 ${esc(l.name)}</button>`;
+    return `<div class="item" data-id="${l.id}">
+      ${main}
+      <button class="iconBtn" data-act="edit" title="주소 입력·수정">✎</button>
+    </div>`;
+  }).join('') || `<div style="font-size:12px;color:#a8adc4">자주 쓰는 사이트를 등록하세요</div>`;
+}
+$('sheetList').onclick = e=>{
+  const btn=e.target.closest('[data-act]'); if(!btn) return;
+  const id=btn.closest('.item').dataset.id;
+  const s=S.sheets.find(x=>x.id===id); if(!s) return;
+  if(btn.dataset.act==='upload') pickFile(s);
+  else if(btn.dataset.act==='edit') sheetModal(s);
+};
+$('linkList').onclick = e=>{
+  const btn=e.target.closest('[data-act]'); if(!btn) return;
+  const id=btn.closest('.item').dataset.id;
+  const l=S.links.find(x=>x.id===id); if(!l) return;
+  if(btn.dataset.act==='edit') linkModal(l);
+};
+$('btnAddSheet').onclick = ()=> sheetModal(null);
+$('btnAddLink').onclick  = ()=> linkModal(null);
+
+/* ---------- 렌더: 달력 ---------- */
+function renderCalendar(){
+  const {y,m} = view;
+  $('calTitle').textContent = `${y}년 ${m}월 월중계획`;
+  $('baseYear').value = curBase();
+  $('monthTabs').innerHTML = MONTH_ORDER.map(mm=>
+    `<button class="mtab ${mm===m?'on':''}" data-m="${mm}">${mm}월</button>`).join('');
+
+  const first = new Date(y, m-1, 1);
+  const days  = new Date(y, m, 0).getDate();
+  const lead  = first.getDay();
+  const cells = Math.ceil((lead+days)/7)*7;
+  const heads = ['일','월','화','수','목','금','토'];
+  let html = heads.map((h,i)=>`<div class="gh ${i===0?'sun':i===6?'sat':''}">${h}</div>`).join('');
+  const t = todayStr();
+
+  for(let i=0;i<cells;i++){
+    const dnum = i-lead+1;
+    if(dnum<1 || dnum>days){ html += `<div class="cell empty"></div>`; continue; }
+    const ds = `${y}-${pad(m)}-${pad(dnum)}`;
+    const dow = (i%7);
+    const evs = eventsOf(ds);
+    const show = evs.slice(0,3);
+    const chips = show.map(e=>{
+      const c = deptColor(e.dept);
+      return `<div class="ev" style="--c:${c};--c-bg:${hexA(c,.10)};--c-fg:${c}" title="${esc(e.dept)} · ${esc(e.type)} · ${esc(e.title)}">${esc(e.title)}</div>`;
+    }).join('');
+    const more = evs.length>3 ? `<button class="more">+${evs.length-3}건 더보기</button>` : '';
+    html += `<div class="cell ${ds===t?'today':''} ${ds===selected?'sel':''}" data-date="${ds}">
+      <div class="dnum ${dow===0?'sun':dow===6?'sat':''}">${dnum}</div>${chips}${more}</div>`;
+  }
+  $('calGrid').innerHTML = html;
+
+  const total = allEvents().filter(e=>e.date.startsWith(`${y}-${pad(m)}`) && passFilter(e)).length;
+  $('calFoot').textContent = `이 달 표시 중인 일정 ${total}건`;
+}
+$('monthTabs').onclick = e=>{
+  const b=e.target.closest('[data-m]'); if(!b) return;
+  const m=+b.dataset.m; view={y:yearOf(m), m}; renderCalendar();
+};
+$('baseYear').onchange = e=> setBase(e.target.value);
+$('baseYear').onkeydown = e=>{ if(e.key==='Enter') setBase(e.target.value); };
+$('btnPrevYear').onclick = ()=> setBase(curBase()-1);
+$('btnNextYear').onclick = ()=> setBase(curBase()+1);
+$('calGrid').onclick = e=>{
+  const c=e.target.closest('.cell'); if(!c||!c.dataset.date) return;
+  selected=c.dataset.date; renderCalendar(); renderToday();
+};
+
+/* ---------- 렌더: TODAY ---------- */
+function renderToday(){
+  const d = new Date(selected+'T00:00:00');
+  const wd = ['일','월','화','수','목','금','토'][d.getDay()];
+  $('todayDate').textContent = `${d.getMonth()+1}월 ${d.getDate()}일 (${wd})`;
+
+  const evs = eventsOf(selected);
+  const groups = {};
+  evs.forEach(e=>{ (groups[e.dept]=groups[e.dept]||[]).push(e); });
+  const keys = Object.keys(groups)
+    .sort((a,b)=> deptRank(a)-deptRank(b) || a.localeCompare(b));   // 학사일정 먼저
+
+  $('todayBody').innerHTML = keys.length ? keys.map(k=>{
+    const c = deptColor(k);
+    const rows = groups[k].map(e=>`
+      <div class="erow" data-id="${esc(e.id)}">
+        <span class="badge" style="background:${hexA(c,.14)};color:${c}">${esc(e.type)}</span>
+        <div class="txt">${esc(e.title)}${e.sheetId?`<div class="src">📁 ${esc(e.sheetName)} 파일</div>`:''}</div>
+        ${e.sheetId ? `<span class="iconBtn" title="올린 파일에서 온 일정 — 파일을 고쳐 다시 올리세요">🔒</span>`
+                    : `<button class="iconBtn" data-edit="${esc(e.id)}" title="고치기">✎</button>
+                       <button class="iconBtn" data-del="${esc(e.id)}" title="삭제">✕</button>`}
+      </div>`).join('');
+    return `<div class="grp">
+      <div class="grpHead" style="background:${hexA(c,.13)};color:${c}">
+        <span class="sdot" style="background:${c}"></span>${esc(k)}<span class="cnt">${groups[k].length}</span>
+      </div>${rows}</div>`;
+  }).join('') : `<div class="emptyMsg">등록된 일정이 없습니다.<br>아래에서 바로 추가해 보세요.</div>`;
+
+  updateMinutesLink();     // 고른 날짜가 든 주의 일정을 회의록 단추에 담아 둠
+}
+$('todayBody').onclick = e=>{
+  const ed=e.target.closest('[data-edit]');
+  if(ed){
+    const ev = S.events.find(x=>x.id===ed.dataset.edit);
+    if(ev) eventModal(ev);
+    return;
+  }
+  const b=e.target.closest('[data-del]'); if(!b) return;
+  const id=b.dataset.del;
+  if(!confirm('이 일정을 삭제할까요?')) return;
+  S.events = S.events.filter(x=>x.id!==id);
+  save(); renderCalendar(); renderToday();
+};
+
+/* ---------- 일정 고치기 ---------- */
+function eventModal(ev){
+  const depts = S.depts.map(d=>d.name);
+  if(ev.dept && depts.indexOf(ev.dept)<0) depts.unshift(ev.dept);
+  const types = S.types.slice();
+  if(ev.type && types.indexOf(ev.type)<0) types.unshift(ev.type);
+  openModal(`
+    <h3>✎ 일정 고치기</h3>
+    <p class="desc">고치는 즉시 저장되고 달력에 바로 반영됩니다.</p>
+    <div class="fld"><label>날짜</label><input id="evDate" type="date" value="${esc(ev.date)}"></div>
+    <div style="display:flex;gap:10px">
+      <div class="fld" style="flex:1"><label>구분</label>
+        <select id="evType">${types.map(t=>`<option ${t===ev.type?'selected':''}>${esc(t)}</option>`).join('')}</select>
+      </div>
+      <div class="fld" style="flex:1"><label>부서</label>
+        <select id="evDept">${depts.map(d=>`<option ${d===ev.dept?'selected':''}>${esc(d)}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="fld"><label>내용</label><textarea id="evTitle" style="min-height:90px">${esc(ev.title)}</textarea></div>
+    <div class="hint" id="evInfo"></div>
+    <div class="modalFoot">
+      <button class="btn danger sm left" id="evDel">삭제</button>
+      <button class="btn" id="mCancel">닫기</button>
+    </div>`);
+  const touch = ()=>{
+    const d = $('evDate').value;
+    if(d) ev.date = d;
+    ev.type  = $('evType').value || ev.type;
+    ev.dept  = $('evDept').value || ev.dept;
+    ev.title = $('evTitle').value.trim() || ev.title;
+    save(); renderCalendar(); renderToday();
+    const dd = new Date(ev.date+'T00:00:00');
+    $('evInfo').innerHTML = `저장됨 → <b>${dd.getMonth()+1}월 ${dd.getDate()}일</b> · ${esc(ev.dept)} · ${esc(ev.type)}` +
+      (ev.date!==selected ? ' <span style="color:#e5484d">(다른 날짜로 옮겨졌습니다)</span>' : '');
+  };
+  $('evDate').onchange  = touch;
+  $('evType').onchange  = touch;
+  $('evDept').onchange  = touch;
+  $('evTitle').oninput  = touch;
+  touch();
+  $('evDel').onclick = ()=>{
+    if(!confirm('이 일정을 삭제할까요?')) return;
+    S.events = S.events.filter(x=>x.id!==ev.id);
+    save(); closeModal(); renderCalendar(); renderToday(); toast('삭제했습니다');
+  };
+  $('mCancel').onclick = ()=>{ touch(); closeModal(); };
+}
+$('btnToday').onclick = ()=>{
+  selected = todayStr();
+  const d=new Date();
+  S.baseYear = todayBase(d);            // 학년도도 오늘 기준으로 되돌림
+  view = {y:d.getFullYear(), m:d.getMonth()+1};
+  save(); renderCalendar(); renderToday();
+};
+
+/* ---------- 일정 추가 ---------- */
+function renderSelects(){
+  $('addType').innerHTML = S.types.map(t=>`<option>${esc(t)}</option>`).join('');
+  $('addDept').innerHTML = S.depts.map(d=>`<option>${esc(d.name)}</option>`).join('');
+}
+$('btnAdd').onclick = ()=>{
+  const title = $('addText').value.trim();
+  if(!title){ toast('일정 내용을 입력하세요'); return; }
+  S.events.push({id:uid(), date:selected, type:$('addType').value, dept:$('addDept').value, title});
+  $('addText').value='';
+  save(); renderCalendar(); renderToday(); toast('일정을 추가했습니다');
+};
+
+/* ---------- 모달 ---------- */
+function openModal(html){ $('modal').innerHTML=html; $('back').classList.add('on'); }
+function closeModal(){ $('back').classList.remove('on'); }
+$('back').onclick = e=>{ if(e.target===$('back')) closeModal(); };
+
+function sheetModal(s){
+  const isNew = !s;
+  s = s || {id:uid(), name:'', fileName:'', defType:'행사', defDept:''};
+  if(isNew){ S.sheets.push(s); save(); renderSheets(); }   // 만드는 즉시 저장
+  const d = S.sheetData[s.id] || {};
+
+  openModal(`
+    <h3>📁 자료 파일</h3>
+    <p class="desc">양식 파일(CSV·엑셀)에 내용을 채워 올리면 왼쪽 월중계획에 바로 들어갑니다.<br>
+      <b>입력하는 즉시 저장</b>되니 따로 저장 단추를 누르지 않아도 됩니다.</p>
+
+    <div class="fld"><label>자료 이름</label>
+      <input id="mName" type="text" value="${esc(s.name)}" placeholder="예: 학사일정" autocomplete="off">
+    </div>
+
+    <div class="fld"><label>파일 올리기 (CSV · 엑셀 .xlsx)</label>
+      <button class="btn" id="mPick" style="width:100%;padding:12px">📤 내 컴퓨터에서 파일 선택</button>
+      <div class="hint" id="mFileInfo" style="margin-top:8px">
+        ${d.events && d.events.length
+          ? `현재: <b>${esc(s.fileName||'')}</b> — 일정 ${d.events.length}건 (${esc(d.at||'')})`
+          : '아직 올린 파일이 없습니다.'}
+      </div>
+    </div>
+
+    <div class="fld"><label>부서 칸이 비어 있을 때 넣을 부서</label>
+      <select id="mDept"><option value="">(자료 이름 사용)</option>${S.depts.map(x=>`<option ${s.defDept===x.name?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+    </div>
+    <div class="fld"><label>구분 칸이 비어 있을 때 넣을 구분</label>
+      <select id="mType">${S.types.map(t=>`<option ${s.defType===t?'selected':''}>${esc(t)}</option>`).join('')}</select>
+    </div>
+
+    <div class="hint">
+      · 파일 첫 줄은 <b>날짜 / 구분 / 부서 / 내용</b> 이어야 합니다 (샘플 양식 그대로 쓰면 됩니다).<br>
+      · 같은 자료에 새 파일을 올리면 이전 내용은 <b>새 파일로 바뀝니다</b>.<br>
+      · 옛날 엑셀(.xls)은 읽지 못합니다 — .xlsx 또는 CSV 로 저장해 주세요.
+    </div>
+
+    <div class="modalFoot">
+      <button class="btn danger sm left" id="mDel">이 자료 지우기</button>
+      <button class="btn" id="mCancel">닫기</button>
+    </div>`);
+
+  const touch = ()=>{                      // 고칠 때마다 즉시 저장 + 화면 반영
+    s.name = $('mName').value.trim() || '자료';
+    s.defDept = $('mDept').value;
+    s.defType = $('mType').value;
+    save(); renderAll();
+  };
+  $('mName').oninput  = touch;
+  $('mDept').onchange = touch;
+  $('mType').onchange = touch;
+
+  $('mPick').onclick = ()=>{ touch(); pickFile(s); };
+  $('mCancel').onclick = ()=>{
+    touch();
+    const has = S.sheetData[s.id] && S.sheetData[s.id].events && S.sheetData[s.id].events.length;
+    if(isNew && !$('mName').value.trim() && !has){       // 이름도 파일도 없이 닫으면 없던 일로
+      S.sheets = S.sheets.filter(x=>x.id!==s.id); save(); renderAll();
+    }
+    closeModal();
+  };
+  $('mDel').onclick = ()=>{
+    if(!confirm(`'${s.name||'이 자료'}' 와 여기서 들어온 일정을 모두 지울까요?`)) return;
+    S.sheets = S.sheets.filter(x=>x.id!==s.id);
+    delete S.sheetData[s.id];
+    save(); closeModal(); renderAll(); toast('지웠습니다');
+  };
+}
+
+/* ---------- 샘플 양식 ---------- */
+const SAMPLE = {
+  '학사일정':
+`날짜,구분,부서,내용
+2026-03-02,행사,교무기획부,입학식 및 시업식
+2026-03-02~2026-03-06,계획,교무기획부,학교 적응 주간
+2026-03-13,회의,교무기획부,제1회 학업성적관리위원회
+2026-03-20,제출,교육행정실,3월 학교회계 지출품의 마감
+2026-04-24~2026-04-26,행사,학생인권안전부,1학년 수련활동
+2026-04-28~2026-05-01,행사,교무기획부,1학기 중간고사
+2026-05-15,행사,교무기획부,스승의 날 기념식
+2026-06-03,회의,미래교육연구부,교육과정 운영위원회
+2026-06-17,계획,학생인권안전부,학교폭력 예방교육
+2026-07-06~2026-07-09,행사,교무기획부,1학기 기말고사
+2026-07-17,행사,교무기획부,여름방학식
+2026-08-18,행사,교무기획부,2학기 개학식
+2026-09-11,제출,교육행정실,추석 명절 복무 계획 제출
+2026-10-01~2026-10-02,행사,교무기획부,체육대회
+2026-10-13~2026-10-15,행사,교무기획부,2학기 중간고사
+2026-11-05,행사,미래교육연구부,학생 진로체험의 날
+2026-12-08~2026-12-11,행사,교무기획부,2학기 기말고사
+2026-12-24,행사,교무기획부,겨울방학식
+2027-02-05,행사,교무기획부,졸업식
+2027-02-10,제출,교무기획부,2026학년도 교육과정 운영 결과 제출`,
+
+  '창의적체험활동':
+`날짜,구분,부서,내용
+2026-03-05,자율활동,미래교육연구부,학급 임원 선거 및 학급 규칙 정하기
+2026-03-19,자율활동,학생인권안전부,재난 대비 안전교육 및 대피 훈련
+2026-04-02,동아리활동,미래교육연구부,정규 동아리 조직 및 연간 계획 수립
+2026-04-16,진로활동,미래교육연구부,진로 심리검사 및 결과 해석
+2026-05-07,동아리활동,미래교육연구부,동아리별 주제 탐구 활동
+2026-05-21,진로활동,미래교육연구부,직업인 특강 - 학과 계열별 진로 탐색
+2026-06-04,자율활동,학생인권안전부,학교폭력 예방 및 또래 상담 활동
+2026-06-18,동아리활동,미래교육연구부,동아리 활동 중간 발표
+2026-09-03,진로활동,미래교육연구부,대학 전공 체험의 날
+2026-09-17,자율활동,교무기획부,학생 자치회 주관 캠페인 활동
+2026-10-08,동아리활동,미래교육연구부,동아리 발표회 준비
+2026-10-22,진로활동,미래교육연구부,진로 포트폴리오 작성 지도
+2026-11-12,동아리활동,미래교육연구부,동아리 발표회
+2026-11-26,자율활동,학생인권안전부,생명존중 및 정신건강 교육
+2026-12-17,자율활동,미래교육연구부,한 해 활동 성찰 및 자기평가`
+};
+function downloadCsv(name, text){
+  const blob = new Blob(['﻿'+text], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `샘플_${name}.csv`; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function sampleModal(){
+  openModal(`
+    <h3>📄 샘플 양식 내려받기</h3>
+    <p class="desc">양식을 내려받아 내용만 바꿔 채운 뒤, 그 파일을 그대로 올리면 됩니다.</p>
+
+    <div class="fld">
+      <label>1단계 · 양식 내려받기 (엑셀에서 바로 열립니다)</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn line sm" data-dl="학사일정">📄 학사일정 양식</button>
+        <button class="btn line sm" data-dl="창의적체험활동">📄 창의적체험활동 양식</button>
+      </div>
+    </div>
+
+    <div class="secTitle">2단계 · 내용 채우기 (이것만 지키면 됩니다)</div>
+    <div class="hint">
+      · <b>첫 줄(머리글)은 지우지 마세요</b>: <code>날짜 , 구분 , 부서 , 내용</code><br>
+      · 날짜: <code>2026-03-02</code> 또는 <code>3/2</code> 또는 <code>3월 2일</code><br>
+      · 여러 날 행사: <code>2026-04-28~2026-05-01</code> 처럼 물결(~)로 표시<br>
+      · <b>한 줄에 한 일정</b>, 빈 줄·병합된 칸·제목 줄은 넣지 마세요<br>
+      · 부서·구분 칸에 학교에서 쓰는 이름을 적으면 필터 칩이 자동으로 생깁니다<br>
+      · 엑셀로 편집했다면 <b>.xlsx</b> 또는 <b>CSV</b> 로 저장하세요 (.xls 는 읽지 못합니다)
+    </div>
+
+    <div class="secTitle">3단계 · 올리기</div>
+    <div class="hint">
+      왼쪽 <b>📁 자료 파일 올리기</b> 카드에서 <b>자료 이름 단추</b>를 누르고 채운 파일을 선택하면 끝입니다.<br>
+      올리는 즉시 저장되고 달력에 바로 나타납니다. 나중에 내용을 고쳤으면 <b>같은 단추로 새 파일을 다시 올리면</b> 됩니다.
+    </div>
+
+    <div class="modalFoot"><button class="btn" id="mCancel">닫기</button></div>`);
+  $('mCancel').onclick = closeModal;
+  $('modal').addEventListener('click', e=>{
+    const dl = e.target.closest('[data-dl]');
+    if(dl){ downloadCsv(dl.dataset.dl, SAMPLE[dl.dataset.dl]); toast('내려받기 폴더를 확인하세요'); }
+  });
+}
+$('btnSample').onclick = sampleModal;
+
+function linkModal(l){
+  const isNew = !l;
+  l = l || {id:uid(), name:'', url:''};
+  if(isNew){ S.links.push(l); save(); renderLinks(); }
+  openModal(`
+    <h3>🔗 바로가기 링크</h3>
+    <p class="desc">자주 쓰는 사이트를 등록하면 한 번 눌러 바로 열 수 있습니다.
+      <b>입력하는 즉시 저장</b>됩니다.</p>
+    <div class="fld"><label>이름</label><input id="mName" type="text" value="${esc(l.name)}" placeholder="예: 온라인 교무실" autocomplete="off"></div>
+    <div class="fld"><label>인터넷 주소</label><input id="mUrl" type="text" value="${esc(l.url)}" placeholder="https://..." autocomplete="off"></div>
+    <div class="hint" id="mLinkInfo"></div>
+    <div class="modalFoot">
+      <button class="btn danger sm left" id="mDel">삭제</button>
+      <button class="btn" id="mCancel">닫기</button>
+    </div>`);
+  const touch = ()=>{
+    l.name = $('mName').value.trim() || '바로가기';
+    let u = $('mUrl').value.trim();
+    if(u && !/^https?:\/\//i.test(u)) u = 'https://'+u;
+    l.url = u;
+    save(); renderLinks();
+    $('mLinkInfo').innerHTML = u ? `저장됨 → <b>${esc(u)}</b>` : '주소를 넣으면 카드가 초록색으로 바뀝니다.';
+  };
+  $('mName').oninput = touch;
+  $('mUrl').oninput  = touch;
+  touch();
+  $('mDel').onclick = ()=>{
+    if(!confirm('이 링크를 삭제할까요?')) return;
+    S.links = S.links.filter(x=>x.id!==l.id); save(); closeModal(); renderLinks();
+  };
+  $('mCancel').onclick = ()=>{
+    if(isNew && !$('mName').value.trim() && !$('mUrl').value.trim()){
+      S.links = S.links.filter(x=>x.id!==l.id); save(); renderLinks();
+    }
+    closeModal();
+  };
+}
+
+/* ---------- 설정(편집) ---------- */
+function settingsModal(){
+  const deptRows = S.depts.map((d,i)=>`
+    <div class="editRow" data-i="${i}">
+      <input type="color" class="dColor" value="${d.color}">
+      <input type="text" class="dName" value="${esc(d.name)}">
+      <button class="iconBtn" data-rm="dept">✕</button>
+    </div>`).join('');
+  const typeRows = S.types.map((t,i)=>`
+    <div class="editRow" data-i="${i}">
+      <input type="text" class="tName" value="${esc(t)}">
+      <button class="iconBtn" data-rm="type">✕</button>
+    </div>`).join('');
+  openModal(`
+    <h3>⚙️ 대시보드 편집</h3>
+    <p class="desc"><b>고치는 즉시 저장되고 뒤쪽 대시보드에 바로 반영됩니다.</b>
+      따로 저장 단추를 누르지 않아도 됩니다.</p>
+    <div class="fld"><label>제목</label><input id="sSchool" type="text" value="${esc(S.school)}"></div>
+    <div class="fld"><label>부제 (작은 글씨)</label><input id="sSub" type="text" value="${esc(S.sub)}"></div>
+    <div class="fld"><label>오른쪽 위 표시 이름 (선택)</label><input id="sUser" type="text" value="${esc(S.user)}" placeholder="예: 교무기획부 홍길동"></div>
+
+    <div class="secTitle">부서 관리 <span style="font-weight:500;color:#8a8fa8">— 색을 눌러 부서 색을 바꿀 수 있어요</span></div>
+    <div id="deptBox">${deptRows}</div>
+    <button class="addBtn" id="addDeptRow">+ 부서 추가</button>
+
+    <div class="secTitle">구분 관리</div>
+    <div id="typeBox">${typeRows}</div>
+    <button class="addBtn" id="addTypeRow">+ 구분 추가</button>
+
+    <div class="secTitle">배경 그림</div>
+    <div id="bgPreview"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn line sm" id="btnBgPick">🖼 그림 파일 올리기</button>
+      <button class="btn line sm" id="btnBgClear">배경 지우기</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+      <span style="font-size:12.5px;font-weight:700;color:#5a5f7a;white-space:nowrap">흐리게</span>
+      <input type="range" id="bgVeil" min="0" max="90" step="5" style="flex:1">
+      <span style="font-size:11.5px;color:#8a8fa8;white-space:nowrap">글씨가 잘 보이게</span>
+    </div>
+    <div class="hint">사진은 자동으로 크기를 줄여 저장합니다. 사진이 진해서 글씨가 잘 안 보이면
+      <b>흐리게</b>를 오른쪽으로 옮기세요.</div>
+
+    <div class="secTitle">데이터</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn line sm" id="btnExport">백업 파일 저장</button>
+      <button class="btn line sm" id="btnImport">백업 파일 불러오기</button>
+      <button class="btn danger sm" id="btnReset">전체 초기화</button>
+    </div>
+    <div class="hint">이 대시보드의 내용은 <b>이 컴퓨터의 브라우저</b>에 저장됩니다.
+      다른 컴퓨터에서도 쓰려면 백업 파일을 저장해 옮기세요.</div>
+
+    <div class="modalFoot">
+      <span style="margin-right:auto;font-size:12px;color:#22a06b" id="savedMark">✔ 저장됨</span>
+      <button class="btn" id="mCancel">닫기</button>
+    </div>`);
+
+  // 고칠 때마다 즉시 저장 + 대시보드 반영
+  function applyNow(){
+    S.school = $('sSchool').value.trim() || '학교 업무 대시보드';
+    S.sub    = $('sSub').value.trim();
+    S.user   = $('sUser').value.trim();
+    const depts=[];
+    $('deptBox').querySelectorAll('.editRow').forEach(r=>{
+      const n=r.querySelector('.dName').value.trim();
+      if(n) depts.push({name:n, color:r.querySelector('.dColor').value});
+    });
+    const types=[];
+    $('typeBox').querySelectorAll('.editRow').forEach(r=>{
+      const n=r.querySelector('.tName').value.trim(); if(n) types.push(n);
+    });
+    if(depts.length) S.depts=depts;
+    if(types.length) S.types=types;
+    // 지워진 부서·구분이 필터에 남아 있으면 정리
+    [...filterDepts].forEach(n=>{ if(!S.depts.some(d=>d.name===n)) filterDepts.delete(n); });
+    [...filterTypes].forEach(t=>{ if(!S.types.includes(t)) filterTypes.delete(t); });
+    save(); renderAll();
+    const mark = $('savedMark');
+    if(mark){ mark.textContent='✔ 저장됨 '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+  }
+  $('modal').addEventListener('input', e=>{ if(e.target.id!=='bgVeil') applyNow(); });
+  $('modal').addEventListener('change', e=>{ if(e.target.id!=='bgVeil') applyNow(); });
+
+  // 배경 그림
+  refreshBgBox();
+  $('btnBgPick').onclick = pickBackground;
+  $('btnBgClear').onclick = ()=>{
+    if(!(S.bg && S.bg.img)){ toast('배경 그림이 없습니다'); return; }
+    S.bg = null; applyBg(); save(); refreshBgBox(); toast('배경을 지웠습니다');
+  };
+  $('bgVeil').oninput = ()=>{
+    S.bg = S.bg || {};
+    S.bg.veil = (+$('bgVeil').value)/100;
+    applyBg(); save();
+  };
+
+  $('addDeptRow').onclick = ()=>{
+    const i = $('deptBox').children.length;
+    const div=document.createElement('div');
+    div.className='editRow';
+    div.innerHTML=`<input type="color" class="dColor" value="${PALETTE[i%PALETTE.length]}">
+      <input type="text" class="dName" value="" placeholder="부서 이름">
+      <button class="iconBtn" data-rm="dept">✕</button>`;
+    $('deptBox').appendChild(div); div.querySelector('.dName').focus();
+  };
+  $('addTypeRow').onclick = ()=>{
+    const div=document.createElement('div');
+    div.className='editRow';
+    div.innerHTML=`<input type="text" class="tName" value="" placeholder="구분 이름"><button class="iconBtn" data-rm="type">✕</button>`;
+    $('typeBox').appendChild(div); div.querySelector('.tName').focus();
+  };
+  $('modal').addEventListener('click', e=>{
+    const b=e.target.closest('[data-rm]'); if(!b) return;
+    b.closest('.editRow').remove();
+    applyNow();
+  });
+  $('btnExport').onclick = ()=>{
+    const blob = new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`학교대시보드_백업_${todayStr()}.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+  $('btnImport').onclick = ()=>{
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.json';
+    inp.onchange=()=>{
+      const f=inp.files[0]; if(!f) return;
+      const r=new FileReader();
+      r.onload=()=>{ try{ S=Object.assign(S,JSON.parse(r.result)); save(); closeModal(); renderAll(); toast('불러왔습니다'); }
+                     catch(e){ toast('백업 파일을 읽을 수 없습니다'); } };
+      r.readAsText(f,'utf-8');
+    };
+    inp.click();
+  };
+  $('btnReset').onclick = ()=>{
+    if(!confirm('입력한 일정·부서·링크가 모두 지워집니다. 계속할까요?')) return;
+    localStorage.removeItem(LS); location.reload();
+  };
+  $('mCancel').onclick = ()=>{ applyNow(); closeModal(); };
+}
+$('btnSettings').onclick = settingsModal;
+$('btnPrint').onclick = ()=>window.print();
+
+/* ---------- 월중 일괄 입력 ---------- */
+$('btnBulk').onclick = ()=>{
+  openModal(`
+    <h3>+ 월중 입력 (여러 건 한꺼번에)</h3>
+    <p class="desc">한 줄에 하나씩 입력하세요. 항목은 <b>쉼표(,)</b> 또는 <b>탭</b>으로 구분합니다.</p>
+    <div class="fld"><label>날짜, 구분, 부서, 내용</label>
+      <textarea id="bulkText" placeholder="7/3, 행사, 교무기획부, 개교기념일&#10;7/6~7/8, 계획, 교육행정실, 본예산 검토&#10;2026-07-15, 회의, 학생인권안전부, 학교폭력대책위원회"></textarea>
+    </div>
+    <div class="hint">· 날짜는 <b>7/3</b>, <b>7월 3일</b>, <b>2026-07-03</b> 모두 됩니다.
+      (연도를 안 쓰면 지금 보고 있는 <b>${curBase()}학년도</b>로 들어갑니다)<br>
+      · <b>7/6~7/8</b> 처럼 기간으로 쓰면 그 기간 매일 표시됩니다.<br>
+      · 구분·부서를 빼면 기타 / 첫 번째 부서로 들어갑니다.</div>
+    <div class="modalFoot">
+      <button class="btn line" id="mCancel">취소</button>
+      <button class="btn" id="mSave">추가</button>
+    </div>`);
+  $('mCancel').onclick = closeModal;
+  $('mSave').onclick = ()=>{
+    const lines = $('bulkText').value.split('\n').map(x=>x.trim()).filter(Boolean);
+    let n=0;
+    lines.forEach(line=>{
+      const p = line.split(/\t|,/).map(x=>x.trim());
+      const dates = expandRange(p[0],'');
+      if(!dates.length) return;
+      let type='기타', dept=S.depts[0].name, title='';
+      const rest = p.slice(1).filter(x=>x!=='');
+      if(rest.length>=3){ type=rest[0]; dept=rest[1]; title=rest.slice(2).join(', '); }
+      else if(rest.length===2){
+        if(S.types.includes(rest[0])){ type=rest[0]; title=rest[1]; }
+        else if(S.depts.some(d=>d.name===rest[0])){ dept=rest[0]; title=rest[1]; }
+        else title=rest.join(', ');
+      } else title = rest.join(', ');
+      if(!title) return;
+      dates.forEach(d=>{ S.events.push({id:uid(), date:d, type, dept, title}); n++; });
+    });
+    save(); closeModal(); renderCalendar(); renderToday(); toast(`${n}건을 추가했습니다`);
+  };
+};
+
+/* ---------- 회의록 프로그램으로 넘기기 ---------- */
+function mondayOf(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate() - ((d.getDay()+6)%7));      // 월요일로 맞춤
+  return ymd(d);
+}
+function updateMinutesLink(){
+  const mon = mondayOf(selected);
+  const days = [0,1,2,3,4].map(i=>{
+    const d = new Date(mon+'T00:00:00'); d.setDate(d.getDate()+i); return ymd(d);
+  });
+  const fri = days[4];
+  const evs = allEvents()
+    .filter(e => days.indexOf(e.date) >= 0 && passFilter(e))
+    .map(e => ({date:e.date, dept:e.dept, type:e.type, title:e.title}));
+  const plan = {week:mon, meetDate:fri, events:evs};
+  const a = $('btnMinutes');
+  a.href = '기획회의_회의록.html#plan=' + encodeURIComponent(JSON.stringify(plan));
+  a.title = `${mon.slice(5).replace('-','/')} ~ ${fri.slice(5).replace('-','/')} 주간 일정 ${evs.length}건을 회의록으로 가져갑니다`;
+}
+
+/* ---------- 전체 렌더 ---------- */
+function renderAll(){
+  $('ttlSchool').textContent = S.school;
+  $('ttlSub').textContent = S.sub;
+  $('ttlUser').textContent = S.user;
+  document.title = S.school;
+  applyBg();
+  renderFilters(); renderSheets(); renderLinks(); renderSelects();
+  renderCalendar(); renderToday();
+}
+
+/* ---------- 시작 ---------- */
+(function init(){
+  load();
+  const now = new Date();
+  selected = todayStr();
+  if(S.baseYear && S.baseYear !== todayBase(now)){
+    view = {y:S.baseYear, m:3};          // 지난번에 보던 학년도면 그 해 3월부터
+  }else{
+    S.baseYear = todayBase(now);
+    view = {y:now.getFullYear(), m:now.getMonth()+1};
+  }
+  if(!S.sheets.length && !S.links.length && !localStorage.getItem(LS)){
+    S.sheets = [
+      {id:uid(), name:'학사일정',       fileName:'', defType:'행사', defDept:''},
+      {id:uid(), name:'창의적체험활동', fileName:'', defType:'행사', defDept:''}
+    ];
+    S.links = [
+      {id:uid(), name:'온라인 교무실', url:''},
+      {id:uid(), name:'업무포털',     url:''}
+    ];
+    save();
+  }
+  // 예전(구글 시트 연동) 자료 정리 — 파일 업로드 방식으로 전환
+  let moved = false;
+  S.sheets.forEach(s=>{
+    if('url' in s){ delete s.url; delete s.manual; moved = true; }
+    const d = S.sheetData[s.id];
+    if(d && d.status === 'err'){ d.status=''; d.msg=''; moved = true; }
+  });
+  delete S.autoSync;
+  if(moved) save();
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
