@@ -433,6 +433,19 @@ function queuePush(){
   clearTimeout(SYNC.timer);
   SYNC.timer = setTimeout(pushNow, 900);       // 연달아 고쳐도 한 번에 보냄
 }
+// 20초 안에 답이 없으면 그만 기다린다 (계속 '확인 중…' 으로 멈추지 않도록)
+async function fetchT(url, opt, ms){
+  const ac = new AbortController();
+  const timer = setTimeout(()=>ac.abort(), ms || 20000);
+  try{
+    return await fetch(url, Object.assign({}, opt||{}, {signal:ac.signal}));
+  }catch(e){
+    if(e.name === 'AbortError')
+      throw new Error('20초 동안 답이 없습니다 — 주소가 맞는지, 학교망이 막고 있지는 않은지 확인해 주세요');
+    throw e;
+  }finally{ clearTimeout(timer); }
+}
+
 // 서버가 보낸 답을 읽는다 — 오류일 때 무엇이 문제인지 알려준다
 async function readReply(res){
   if(!res.ok) throw new Error('서버 응답 ' + res.status);
@@ -453,7 +466,7 @@ async function readReply(res){
 async function api(payload){
   const {url} = shareCfg();
   try{
-    const res = await fetch(url, {
+    const res = await fetchT(url, {
       method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},  // 미리 확인 요청 없이 바로 보내기
       body: JSON.stringify(payload)
@@ -464,7 +477,7 @@ async function api(payload){
     const q = url + (url.includes('?')?'&':'?') + 'action=' + encodeURIComponent(payload.action)
             + '&p=' + encodeURIComponent(JSON.stringify(payload)) + '&t=' + Date.now();
     if(q.length > 7500) throw new Error('한 번에 보낼 자료가 너무 많습니다 — 잠시 뒤 다시 시도됩니다');
-    const res2 = await fetch(q);
+    const res2 = await fetchT(q);
     return await readReply(res2);
   }
 }
@@ -515,7 +528,7 @@ async function pullNow(silent){
   SYNC.busy = true; renderSyncPill();
   try{
     const {url} = shareCfg();
-    const res = await fetch(url + (url.includes('?')?'&':'?') + 'action=pull&t=' + Date.now());
+    const res = await fetchT(url + (url.includes('?')?'&':'?') + 'action=pull&t=' + Date.now());
     const j = await readReply(res);
 
     // 1) 일정 합치기 — 더 나중에 고친 쪽이 이깁니다
@@ -1583,7 +1596,7 @@ $('syncPill').onclick = ()=>{
     const line = [];
     // ① 서버가 응답하는지
     try{
-      const res = await fetch(url + (url.includes('?')?'&':'?') + 'action=ping&t=' + Date.now());
+      const res = await fetchT(url + (url.includes('?')?'&':'?') + 'action=ping&t=' + Date.now());
       await readReply(res);
       line.push('① 서버 연결 ✅');
     }catch(e){
@@ -1593,7 +1606,7 @@ $('syncPill').onclick = ()=>{
     }
     // ② 시트에서 자료를 읽을 수 있는지 (여기서 막히면 시트에 붙지 않은 스크립트입니다)
     try{
-      const res = await fetch(url + (url.includes('?')?'&':'?') + 'action=pull&t=' + Date.now());
+      const res = await fetchT(url + (url.includes('?')?'&':'?') + 'action=pull&t=' + Date.now());
       const j = await readReply(res);
       line.push(`② 자료 읽기 ✅ (일정 ${(j.events||[]).filter(e=>!e.deleted).length}건)`);
     }catch(e){
@@ -1608,9 +1621,30 @@ $('syncPill').onclick = ()=>{
       await api({action:'pushConfig', pw, who:whoAmI(), key:'ping', doc:{at:Date.now()}});
       line.push('③ 자료 쓰기 ✅ (암호 맞음)');
     }catch(e){
-      line.push('③ 자료 쓰기 ❌ — ' + esc(e.message) +
-        '<br>&nbsp;&nbsp;↳ 서버 코드 맨 위 <b>PW</b> 값과 위 <b>쓰기 암호</b>가 같은지 확인하세요.');
-      box.innerHTML = line.join('<br>');
+      line.push('③ 자료 쓰기 ❌ — ' + esc(e.message));
+      // 암호 문제라면, 지금 '배포된' 코드의 암호가 몇 글자인지 물어본다
+      if(/암호/.test(e.message)){
+        try{
+          const res = await fetchT(url + (url.includes('?')?'&':'?') + 'action=pwtest&p=' +
+                                  encodeURIComponent(pw) + '&t=' + Date.now());
+          const t = await readReply(res);
+          if(t.serverLen === undefined){
+            line.push('&nbsp;&nbsp;↳ <b>배포된 코드가 예전 버전입니다.</b> 아래 순서로 다시 배포해 주세요.');
+          }else{
+            line.push(`&nbsp;&nbsp;↳ 지금 <b>배포된</b> 코드의 암호는 <b>${t.serverLen}글자</b>, 여기 넣은 암호는 <b>${pw.length}글자</b>입니다.`);
+            if(t.serverLen !== pw.length)
+              line.push('&nbsp;&nbsp;↳ 글자 수가 다릅니다 — <b>코드는 고쳤지만 배포가 예전 버전</b>일 가능성이 큽니다.');
+          }
+        }catch(err2){
+          line.push('&nbsp;&nbsp;↳ <b>배포된 코드가 예전 버전입니다</b> (암호 점검 기능이 없는 옛 코드).');
+        }
+      }
+      box.innerHTML = line.join('<br>') + `<br><br>
+        <b>해결 순서</b><br>
+        ① Apps Script에서 <b>공유서버_AppsScript.gs 전체를 다시 붙여넣고 저장(Ctrl+S)</b><br>
+        ② <b>배포 → 배포 관리 → 연필(✏️) → 버전 [새 버전] → 배포</b><br>
+        &nbsp;&nbsp;&nbsp;<span style="color:#e5484d">코드만 저장하면 반영되지 않습니다. 주소는 그대로 유지됩니다.</span><br>
+        ③ 이 창에서 다시 <b>🔎 연결 확인</b>`;
       SYNC.err = e.message; renderSyncPill(); return;
     }
     SYNC.err = ''; SYNC.at = Date.now(); renderSyncPill();
